@@ -318,7 +318,7 @@ Router.add('settings',el=>{
    <div class="card"><h3>☁️ Đồng bộ đám mây (Google Apps Script)</h3><p class="muted">Để học sinh làm bài trên điện thoại/máy ở nhà và giáo viên nhận bài, cần một máy chủ miễn phí bằng Google Apps Script (file <code>gas/Code.gs</code>, hướng dẫn trong README).</p>
      <div class="field"><label>URL Web App ${CFG.apiUrl?'<span class="badge ok">đã cấu hình trong config.js</span>':''}</label><input type="url" id="stUrl" value="${esc(st.apiUrl||CFG.apiUrl||'')}" placeholder="https://script.google.com/macros/s/.../exec"></div>
      <div class="field"><label>Khoá ghi (WRITE_KEY trong Code.gs – chỉ giáo viên biết)</label><input type="password" id="stKey" value="${esc(st.writeKey||'')}"></div>
-     <div class="row"><button class="btn" data-act="saveSync">Lưu</button><button class="btn" data-act="test">Kiểm tra kết nối</button><button class="btn" data-act="pull">⬇ Tải từ máy chủ</button><button class="btn pri" data-act="push">⬆ Đẩy lên máy chủ</button></div>
+     <div class="row"><button class="btn" data-act="saveSync">Lưu</button><button class="btn" data-act="test">Kiểm tra kết nối</button><button class="btn" data-act="diag">🩺 Chẩn đoán & sửa</button><button class="btn" data-act="pull">⬇ Tải từ máy chủ</button><button class="btn pri" data-act="push">⬆ Đẩy lên máy chủ</button></div>
      <div id="stMsg" style="margin-top:10px"></div></div>
    <div class="card" style="grid-column:1/-1"><h3>📝 Mẫu tiêu đề đề thi (mặc định cho mọi đề)</h3>${headerFieldsHtml(Exam.header({}),'sh')}<div class="row" style="margin-top:8px"><button class="btn pri" data-act="saveHdr">Lưu mẫu tiêu đề</button><button class="btn" data-act="pvHdr">Xem trước</button></div><div id="shPrev" class="paper" style="margin-top:10px;display:none"></div></div>
    <div class="card"><h3>💾 Sao lưu & khôi phục</h3><p class="muted">Dữ liệu đang lưu trong trình duyệt này (${size} KB). Nên sao lưu định kỳ.</p>
@@ -331,6 +331,7 @@ Router.add('settings',el=>{
     if(a==='saveHdr'){ DB.data.settings.header=readHeader(el,'sh'); DB.save(); Sync.markDirty('settings'); toast('Đã lưu mẫu tiêu đề','ok'); }
     if(a==='pvHdr'){ const p=$('#shPrev',el); p.style.display='block'; p.innerHTML=Exam.headerHtml({subject:'toan',grade:12,duration:90},null,{...Exam.defaultHeader(),...readHeader(el,'sh')},22); }
     if(a==='saveInfo'){ st.schoolName=$('#stSchool',el).value.trim(); DB.save(); Sync.markDirty('settings'); toast('Đã lưu','ok'); }
+    if(a==='diag'){ st.apiUrl=$('#stUrl',el).value.trim(); st.writeKey=$('#stKey',el).value.trim(); $('#stKey',el).value=st.writeKey; DB.save(); return syncDiag($('#stMsg',el)); }
     if(a==='saveSync'||a==='test'||a==='pull'||a==='push'){ st.apiUrl=$('#stUrl',el).value.trim(); st.writeKey=$('#stKey',el).value; DB.save(); setSyncDot(false); }
     try{
       if(a==='test'){ const r=await Sync.call('ping',{},'GET'); msg(r.ok?`✅ Kết nối thành công. Máy chủ: ${esc(r.app||'')} – ${esc(r.time||'')}`:'❌ '+esc(r.error),r.ok); }
@@ -345,3 +346,30 @@ Router.add('settings',el=>{
 function pwForm(){ return `<div class="field"><label>Mật khẩu hiện tại</label><input type="password" id="pw0"></div><div class="field"><label>Mật khẩu mới (≥ 6 ký tự)</label><input type="password" id="pw1"></div><div class="field"><label>Nhập lại</label><input type="password" id="pw2"></div><button class="btn pri" id="pwGo">Đổi mật khẩu</button>`; }
 function bindPwForm(el){ const b=$('#pwGo',el); if(!b) return; b.onclick=()=>{ const u=me(); if(u.pw!==hashPw($('#pw0',el).value)) return toast('Mật khẩu hiện tại không đúng','bad'); const p=$('#pw1',el).value; if(p.length<6) return toast('Mật khẩu mới tối thiểu 6 ký tự','bad'); if(p!==$('#pw2',el).value) return toast('Nhập lại không khớp','bad');
   const oldH=u.pw; u.pw=hashPw(p); u.pwAt=Date.now(); delete u.initPw; DB.upsert('users',u); if(u.role==='student'&&Sync.on) Sync.call('changePw',{uid:u.id,old:oldH,pw:u.pw}).then(r=>{ if(!r.ok) toast('Máy chủ chưa nhận mật khẩu mới: '+(r.error||''),'bad'); }).catch(()=>toast('Chưa đồng bộ được mật khẩu mới lên máy chủ','bad')); toast('Đã đổi mật khẩu','ok'); ['pw0','pw1','pw2'].forEach(i=>$('#'+i,el).value=''); }; }
+
+/* ===================== CHẨN ĐOÁN ĐỒNG BỘ ===================== */
+async function syncDiag(box){
+  const rows=[]; const show=()=>{ box.innerHTML=`<div class="card" style="padding:12px;background:#f8fafc">${rows.map(r=>`<div style="padding:6px 0;border-bottom:1px dashed #e2e8f0">${r.ok===true?'✅':r.ok===false?'❌':'⏳'} <b>${r.t}</b>${r.m?`<br><small>${r.m}</small>`:''}</div>`).join('')}</div>`; };
+  const step=(t)=>{ const r={t,ok:null,m:''}; rows.push(r); show(); return r; };
+  const url=(DB.data.settings.apiUrl||CFG.apiUrl||'').trim(), key=(DB.data.settings.writeKey||'').trim();
+  let r=step('1. Đường link Web App');
+  if(!url){ r.ok=false; r.m='Chưa có. Trong Apps Script chạy hàm <b>kiemTra</b> → dòng “🔗 URL Web App” → chép dán vào ô URL ở trên.'; return show(); }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)){ r.ok=false; r.m=/\/dev$/.test(url)?'Đây là link thử nghiệm (/dev). Cần link kết thúc bằng <b>/exec</b> (chạy hàm kiemTra để lấy).':'Link chưa đúng dạng <code>https://script.google.com/macros/s/…/exec</code>. Chạy hàm <b>kiemTra</b> trong Apps Script để lấy đúng link.'; return show(); }
+  r.ok=true; show();
+  r=step('2. Máy chủ trả lời');
+  let ping; try{ const res=await fetch(url+'?action=ping'); const txt=await res.text(); try{ ping=JSON.parse(txt); }catch(e){ r.ok=false; r.m='Máy chủ trả về trang đăng nhập Google thay vì dữ liệu → Triển khai → Quản lý bản triển khai → ✏️ → <b>Người có quyền truy cập: Bất kỳ ai</b> → Phiên bản mới → Triển khai.'; return show(); } }
+  catch(e){ r.ok=false; r.m='Không gọi được máy chủ ('+esc(e.message)+'). Kiểm tra mạng; đường link có thể của bản triển khai đã xoá – chạy hàm <b>kiemTra</b> lấy link mới.'; return show(); }
+  r.ok=true; show();
+  r=step('3. Máy chủ đang chạy code mới');
+  if(!ping.version){ r.ok=false; r.m='Link đang chạy <b>code cũ</b>. Trong Apps Script: Triển khai → Quản lý bản triển khai → ✏️ → Phiên bản: <b>Phiên bản mới</b> → Triển khai. Rồi bấm lại nút Chẩn đoán.'; return show(); }
+  r.ok=true; r.m='Phiên bản máy chủ '+esc(ping.version)+(ping.hasDb?` · đang có ${ping.size} ký tự dữ liệu`:' · chưa có dữ liệu'); show();
+  r=step('4. Khoá ghi');
+  if(!key){ r.ok=false; r.m='Chưa nhập. Chạy hàm <b>kiemTra</b> → dòng “🔑 Khoá ghi” → gõ y hệt vào ô Khoá ghi ở trên.'; return show(); }
+  try{ const k=await Sync.call('checkKey',{key}); if(!k.ok){ r.ok=false; r.m='Khoá ghi không khớp với dòng <code>WRITE_KEY</code> trong Code.gs (phân biệt hoa thường, không có dấu cách). Chạy hàm <b>kiemTra</b> để xem khoá đúng.'; return show(); } }
+  catch(e){ r.ok=false; r.m='Không kiểm tra được: '+esc(e.message); return show(); }
+  r.ok=true; show();
+  r=step('5. Đẩy dữ liệu của máy này lên máy chủ');
+  try{ await Sync.push(); const p2=await Sync.call('ping',{},'GET'); if(!p2.hasDb) throw new Error('máy chủ chưa ghi được'); r.ok=true; r.m=`Đã lưu ${p2.size} ký tự: ${DB.all('users').length} tài khoản, ${DB.all('questions').length} câu hỏi, ${DB.all('exams').length} đề. Học sinh có thể đăng nhập (bấm Ctrl + F5 trước).`; }
+  catch(e){ r.ok=false; r.m='Lỗi khi ghi: '+esc(e.message)+'. Chạy lại hàm kiemTra trong Apps Script để cấp quyền, triển khai phiên bản mới rồi thử lại.'; }
+  show(); setSyncDot(r.ok);
+}
