@@ -10,7 +10,7 @@
 window.LMS_CONFIG = {
   appName: "LMS LKT",
   schoolName: "Trường THPT Bình Thạnh Đông",
-  apiUrl: "https://script.google.com/macros/s/AKfycbw4wM48XwoP2l6TPvnUr5kIxymJXjj-_2NFvJ3R1YNibWZMi8jQxfA6T7_RjFbdTIYU/exec",          // ví dụ: "https://script.google.com/macros/s/AKfy.../exec"
+  apiUrl: "https://script.google.com/macros/s/AKfycbzd6m7w0A3YYmJqG1HUHHkRlZW06qDJThBCavEsMtSLYWBNaIxRQiXEHU91L9OKorss/exec",          // ví dụ: "https://script.google.com/macros/s/AKfy.../exec"
   author: "Lương Khánh Tường",
   contact: "ĐT/Zalo: 0916780807"
 };
