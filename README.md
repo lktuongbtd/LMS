@@ -24,7 +24,7 @@ Web app LMS chạy hoàn toàn trên **GitHub Pages** (không cần máy chủ t
 | **Hình vẽ câu hỏi** | 21 loại hình vẽ tự động: hình chóp, hình hộp, lăng trụ, tam giác, hình bình hành, đường tròn, hệ trục Oxyz, đồ thị hàm số (có tiệm cận, điểm), sơ đồ cây xác suất, hộp bi, xúc xắc, biểu đồ cột/đường, biểu đồ tần số ghép nhóm, minh hoạ thực tiễn (cắt bìa làm hộp, thang dựa tường, bồn trụ, nón, mặt cầu, cổng parabol, cột đèn – bóng, mạch điện). Hình **đổi theo số** của câu tham số |
 | **Đề tương tự** | Một chạm tạo 1–10 đề tương tự: câu tham số thay số mới, câu thường thay bằng câu cùng chủ đề – dạng – mức độ |
 | **Chuẩn hoá** | Chuẩn hoá hàng loạt: khoảng trắng, tiền tố “Câu n”, nhãn A./B. thừa, dấu thập phân kiểu Việt Nam (công thức dùng `{,}`), đáp án, chủ đề |
-| **Tiêu đề & xuất đề** | Mẫu tiêu đề chuẩn (Sở – Trường – Kì thi – Năm học – ĐỀ CHÍNH THỨC – Mã đề – SBD – khung Điểm/Lời phê – dòng cuối), phương án tự xếp 4/2/1 cột như đề thật, kèm **phiếu trả lời**; xuất **Word có nhúng hình**, **In/PDF**, **LaTeX ex_test** (.zip kèm thư mục hình) |
+| **Tiêu đề & xuất đề** | Mẫu tiêu đề chuẩn (Sở – Trường – Kì thi – Năm học – ĐỀ CHÍNH THỨC – Mã đề – SBD – khung Điểm/Lời phê – dòng cuối), phương án tự xếp 4/2/1 cột như đề thật, kèm **phiếu trả lời**; xuất **Word .docx – công thức là Equation của Word (chuyển MathType 1 lệnh), có hình, số trang**, **In/PDF đã biên dịch công thức**, **LaTeX ex_test** (.zip kèm thư mục hình) |
 | **Ôn lý thuyết** | Tóm tắt kiến thức trọng tâm các môn (theo chương trình GDPT 2018 – bộ Kết nối tri thức), khung định nghĩa/công thức/lưu ý/ví dụ, có hình minh hoạ; giáo viên sửa/thêm chủ đề |
 | **Tự luyện** | Học sinh chọn môn – chủ đề – mức độ, chấm ngay từng câu kèm lời giải, lưu lịch sử luyện |
 | **Khác** | Thông báo tới lớp, sao lưu/khôi phục JSON, giao diện responsive (điện thoại) |
@@ -123,7 +123,8 @@ Câu tham số dùng được `{a}`, `{=2*a}` trong hình, ví dụ `@dothi f=x^
 
 - Web tĩnh nên **chấm điểm diễn ra trên trình duyệt**: học sinh rành kĩ thuật có thể soi đáp án bằng công cụ dành cho nhà phát triển. Phù hợp kiểm tra thường xuyên, luyện tập; với kì thi quan trọng nên tổ chức tại phòng máy có giám sát.
 - Mật khẩu được băm trước khi lưu, máy chủ không trả mật khẩu băm cho người không có khoá ghi; tuy vậy đây không phải hệ thống bảo mật cấp ngân hàng.
-- File Word xuất ra là dạng *trang web một tệp* (MHTML) đuôi .doc, có nhúng hình; Word mở trực tiếp (nếu Word hỏi định dạng, chọn Yes/Có), sau đó *Lưu thành .docx*. Công thức giữ dạng LaTeX `$...$`: dùng add-in chuyển LaTeX → MathType/Equation, hoặc chọn **In/PDF** để có công thức hiển thị đẹp ngay.
+- **Word (.docx)**: công thức LaTeX được **biên dịch sẵn thành Equation (Office Math) của Word** – bấm vào sửa được như gõ bằng Insert → Equation; hình vẽ nhúng thành ảnh; có số trang “Trang x/y”. Muốn chuyển sang **MathType**: mở file trong Word → tab MathType → **Convert Equations** → chọn *Microsoft Office equations* → *MathType equations* → Convert.
+- **In / PDF**: công thức được biên dịch bằng KaTeX trước khi mở hộp thoại in (không còn mã LaTeX). Chọn máy in **“Lưu dưới dạng PDF / Save as PDF”**, khổ A4, tỉ lệ 100%, bật “Hình nền/Background graphics”.
 - Xuất LaTeX dùng lệnh `\choice`, `\choiceTF`, `\shortans`, `\loigiai` của gói **ex_test**; với phiên bản ex_test cũ chưa có `\choiceTF`/`\shortans` cần cập nhật gói.
 - Bộ nhớ trình duyệt khoảng 5 MB: tệp lớn nên để trên Google Drive rồi dán link. Sao lưu JSON định kỳ trong **Cài đặt**.
 - Thư viện đi kèm (chạy offline, không cần CDN): KaTeX (MIT), SheetJS Community Edition (Apache 2.0).
@@ -135,7 +136,8 @@ index.html            khung trang
 config.js             cấu hình (tên trường, apiUrl)
 assets/style.css      giao diện
 assets/vendor/        KaTeX, SheetJS
-js/core.js            lưu trữ, đăng nhập, đồng bộ, tiện ích UI, xuất Word (MHTML có hình)/Excel/zip
+js/core.js            lưu trữ, đăng nhập, đồng bộ, tiện ích UI, In/PDF, Excel, zip
+js/docx.js            xuất Word .docx: biên dịch LaTeX → Equation của Word, nhúng hình, bảng, số trang
 js/figures.js         thư viện hình vẽ SVG cho câu hỏi và lý thuyết
 js/bank.js            môn học, cấu trúc đề, chủ đề, câu hỏi tham số, nhập văn bản/Excel, ngân hàng mẫu
 js/bank2.js           ngân hàng mở rộng (có hình, thực tiễn, đủ mức độ) – 11 môn
@@ -147,3 +149,33 @@ js/theory.js          ôn lý thuyết các môn + tự luyện theo chủ đề
 js/app.js             khung giao diện, đăng nhập, điều hướng
 gas/Code.gs           máy chủ đồng bộ Google Apps Script
 ```
+
+## 9. Hướng dẫn cập nhật phiên bản mới (không mất dữ liệu)
+
+Dữ liệu (lớp, tài khoản, ngân hàng, đề, bài nộp) **không nằm trong mã nguồn** nên cập nhật mã không làm mất dữ liệu. Tuy vậy nên sao lưu trước.
+
+**Bước 1 – Sao lưu.** Đăng nhập tài khoản quản trị/giáo viên → **Cài đặt** → **⬇ Sao lưu (.json)**. Nếu dùng đồng bộ, dữ liệu chung đã nằm trên Google Sheet.
+
+**Bước 2 – Giữ lại cấu hình.** Mở file `config.js` đang chạy trên GitHub, chép lại dòng `apiUrl` (URL Apps Script) và tên trường.
+
+**Bước 3 – Tải mã mới lên GitHub.**
+1. Giải nén `LMS-LKT.zip` ra máy.
+2. Mở `config.js` vừa giải nén, dán lại `apiUrl` và tên trường đã chép ở bước 2, lưu file.
+3. Vào repository trên GitHub → **Add file → Upload files** → kéo thả **toàn bộ** các file/thư mục (`index.html`, `config.js`, `README.md`, thư mục `assets`, `js`, `gas`) vào. GitHub tự ghi đè file trùng tên.
+4. Ghi chú (ví dụ “Cập nhật v2.1 – xuất Word công thức”) → **Commit changes**.
+5. Đợi 1–2 phút (xem tab **Actions** có dấu ✓ xanh), mở lại trang web.
+
+**Bước 4 – Xoá bộ nhớ đệm trình duyệt.** Trên máy tính bấm **Ctrl + F5** (Mac: **Cmd + Shift + R**). Trên điện thoại: đóng hẳn tab rồi mở lại, hoặc mở bằng tab ẩn danh để kiểm tra. Kiểm tra phiên bản ở **Cài đặt → Giới thiệu**.
+
+**Bước 5 – Cập nhật máy chủ Apps Script (chỉ khi dùng đồng bộ và file `gas/Code.gs` có thay đổi).**
+1. Mở Google Sheet của hệ thống → **Tiện ích mở rộng → Apps Script**.
+2. Chọn hết nội dung `Code.gs` cũ, dán nội dung `gas/Code.gs` mới. **Giữ nguyên dòng `WRITE_KEY` cũ** của trường.
+3. Bấm 💾 Lưu → **Triển khai → Quản lý bản triển khai** → biểu tượng ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**. (Không tạo “Tùy chọn triển khai mới” để URL không đổi.)
+4. Trong LMS: **Cài đặt → Kiểm tra kết nối** phải báo ✅.
+
+**Bước 6 – Kiểm tra nhanh sau cập nhật.**
+- Đăng nhập thử 1 tài khoản giáo viên và 1 tài khoản học sinh.
+- Vào **Đề thi → ⬇ Xuất** → **Word (.docx)**: mở file bằng Word, bấm vào một công thức thấy khung Equation là đúng.
+- Bấm **In / PDF**: bản xem trước hiển thị công thức đẹp, không có dấu `$`.
+
+**Gặp sự cố?** Trang trắng hoặc lỗi lạ: bấm Ctrl + F5; nếu vẫn lỗi, kiểm tra đã tải đủ thư mục `js/` (đặc biệt file mới `js/docx.js`). Mất dữ liệu trên một máy: **Cài đặt → ⬆ Khôi phục** từ file sao lưu, hoặc **⬇ Tải từ máy chủ**.

@@ -90,7 +90,8 @@ function doPost(e) {
     if (b.action === 'login') {
       const db = dbWithPw_(); if (!db) return out_({ ok: false, error: 'Máy chủ chưa có dữ liệu' });
       const u = (db.users || []).find(x => String(x.username).toLowerCase() === String(b.username || '').trim().toLowerCase());
-      if (!u || u.pw !== b.pw) return out_({ ok: false, error: 'wrong' });
+      if (!u) return out_({ ok: false, error: 'nouser' });
+      if (u.pw !== b.pw) return out_({ ok: false, error: 'wrongpw' });
       if (u.locked) return out_({ ok: false, error: 'locked' });
       const user = Object.assign({}, u); delete user.initPw;
       return out_({ ok: true, user });

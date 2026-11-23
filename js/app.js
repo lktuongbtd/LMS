@@ -39,23 +39,37 @@ const App = {
     <div class="feat"><div><b>❓ Ngân hàng & số tương tự</b>Câu hỏi tham số sinh vô hạn đề khác số</div><div><b>🧮 Ma trận → Đề</b>Đặc tả tự động, sinh đề 1 chạm</div><div><b>🔀 Trộn đề & xuất Word</b>Nhiều mã, bảng đáp án chuẩn</div><div><b>📈 Điểm & tiến độ</b>Xuất Excel theo lớp</div></div></div>
     <small style="color:#a5b4fc">© ${new Date().getFullYear()} ${esc(CFG.author)} · ${esc(CFG.contact)}</small></section>
     <section class="login-box"><div class="login-card"><h1>Đăng nhập</h1><p class="muted">${esc(DB.data.settings.schoolName||CFG.schoolName)}</p>
-      <form id="loginForm"><div class="field"><label>Tài khoản</label><input type="text" id="lgU" autocomplete="username" required></div><div class="field"><label>Mật khẩu</label><input type="password" id="lgP" autocomplete="current-password" required></div>
+      <form id="loginForm"><div class="field"><label>Tài khoản</label><input type="text" id="lgU" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></div><div class="field"><label>Mật khẩu</label><div style="position:relative"><input type="password" id="lgP" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required style="padding-right:44px"><button type="button" id="lgEye" class="btn ghost sm" style="position:absolute;right:4px;top:4px" title="Hiện/ẩn mật khẩu">👁</button></div></div><div id="lgMsg"></div>
       <label style="display:flex;gap:6px;align-items:center;font-weight:500"><input type="checkbox" id="lgR" class="chk"> Ghi nhớ đăng nhập trên máy này</label>
       <button class="btn pri" style="width:100%;justify-content:center;padding:11px;margin-top:14px">Đăng nhập</button></form>
       ${Sync.on?'<p class="muted" style="font-size:12.5px;margin-top:10px">☁️ Đã kết nối máy chủ – dữ liệu lớp học được tải tự động.</p>':''}
       <div class="demo"><b>Tài khoản dùng thử</b><br><button class="btn sm" data-demo="admin|admin123">Quản trị</button><button class="btn sm" data-demo="gv.toan|123456">Giáo viên</button><button class="btn sm" data-demo="hs01|123456">Học sinh</button><br><small class="muted">Đổi/xoá các tài khoản mẫu sau khi triển khai thật.</small></div></div></section></div>`; },
   bindLogin(){
     $$('[data-demo]').forEach(b=>b.onclick=()=>{ const [u,p]=b.dataset.demo.split('|'); $('#lgU').value=u; $('#lgP').value=p; });
-    $('#loginForm').onsubmit=async e=>{ e.preventDefault();
-      if(Sync.on){ try{ const un=$('#lgU').value.trim(), h=hashPw($('#lgP').value);
-          const lr=await Sync.call('login',{username:un,pw:h});
-          if(lr&&lr.ok&&lr.user){ const i=DB.data.users.findIndex(x=>x.id===lr.user.id); if(i>=0) DB.data.users[i]={...DB.data.users[i],...lr.user}; else DB.data.users.push(lr.user); DB.save(); }
-          else if(lr&&lr.error==='locked'){ return toast('Tài khoản đang bị khoá – liên hệ giáo viên','bad'); }
-          else if(lr&&lr.error==='wrong'){ return toast('Sai tài khoản hoặc mật khẩu','bad'); }
-        }catch(err){ /* mất mạng: dùng dữ liệu đã lưu trên máy */ } }
-      const r=Auth.login($('#lgU').value,$('#lgP').value,$('#lgR').checked);
+    $('#lgEye').onclick=()=>{ const i=$('#lgP'); i.type=i.type==='password'?'text':'password'; };
+    const msg=(h,info)=>{ $('#lgMsg').innerHTML=h?`<div class="note ${info?'info':''}" style="margin:8px 0">${h}</div>`:''; };
+    $('#loginForm').onsubmit=async e=>{ e.preventDefault(); msg('');
+      const un=$('#lgU').value.trim(), pw=$('#lgP').value; let srv=null, srvErr=false;
+      if(Sync.on){ try{ srv=await Sync.call('login',{username:un,pw:hashPw(pw.trim())});
+          if(srv&&!srv.ok&&pw!==pw.trim()) srv=await Sync.call('login',{username:un,pw:hashPw(pw)});
+          if(srv&&srv.ok&&srv.user){ const i=DB.data.users.findIndex(x=>x.id===srv.user.id); if(i>=0) DB.data.users[i]={...DB.data.users[i],...srv.user}; else DB.data.users.push(srv.user); DB.save(); }
+          else if(srv&&srv.error==='locked'){ return msg('Tài khoản đang bị khoá – liên hệ giáo viên.'); }
+        }catch(err){ srvErr=true; } }
+      const local=Auth.find(un);
+      if(Sync.on&&srv&&!srv.ok&&srv.error!=='Máy chủ chưa có dữ liệu'){
+        // máy chủ từ chối: chỉ cho giáo viên dùng dữ liệu trên máy (trường hợp chưa đẩy dữ liệu lên)
+        if(!(local&&local.role!=='student'&&Auth.check(local,pw))){
+          return msg(srv.error==='nouser'||(!local&&srv.error==='wrong')?`Máy chủ không có tài khoản <b>${esc(un)}</b>. Có thể giáo viên vừa tạo tài khoản nhưng <b>chưa đẩy dữ liệu lên máy chủ</b> (Cài đặt → nhập Khoá ghi → Đẩy lên máy chủ), hoặc gõ sai tên đăng nhập.`
+            :'Sai mật khẩu. Kiểm tra bàn phím (Caps Lock, gõ tiếng Việt Telex/VNI đang bật) hoặc nhờ giáo viên bấm 🔑 <b>cấp lại mật khẩu</b> rồi đẩy lên máy chủ.'); }
+        toast('Máy chủ chưa có dữ liệu mới của máy này – vào Cài đặt bấm “Đẩy lên máy chủ”','bad');
+      }
+      const r=Auth.login(un,pw,$('#lgR').checked);
       if(r===true){ toast('Đăng nhập thành công','ok'); location.hash='#/'; this.render(); if(Sync.on){ Sync.pull(Auth.is('admin','teacher')&&!!DB.data.settings.writeKey).then(()=>{ Auth.init(); App.render(); }).catch(()=>{}); Sync.flushOutbox(); } }
-      else toast(r==='locked'?'Tài khoản đang bị khoá – liên hệ giáo viên':'Sai tài khoản hoặc mật khẩu','bad'); };
+      else if(r==='locked') msg('Tài khoản đang bị khoá – liên hệ giáo viên.');
+      else if(r==='nouser') msg(srvErr?'Không kết nối được máy chủ đồng bộ và máy này chưa có tài khoản <b>'+esc(un)+'</b>. Kiểm tra mạng, hoặc Web App Apps Script phải triển khai với quyền truy cập <b>“Bất kỳ ai”</b>.'
+        :!Sync.on?`Trình duyệt này chưa có tài khoản <b>${esc(un)}</b>. Hệ thống đang chạy <b>chế độ cục bộ</b>: tài khoản do giáo viên tạo chỉ nằm trên máy của giáo viên. Để học sinh đăng nhập trên máy/điện thoại khác cần bật đồng bộ (dán URL Apps Script vào <code>config.js</code> – xem README mục 3b).`
+        :`Không tìm thấy tài khoản <b>${esc(un)}</b>. Kiểm tra lại tên đăng nhập (ví dụ <code>12a1_01</code>).`);
+      else msg('Sai mật khẩu. Kiểm tra Caps Lock, tắt bộ gõ tiếng Việt khi nhập mật khẩu, hoặc nhờ giáo viên bấm 🔑 <b>cấp lại mật khẩu</b>.'); };
   }
 };
 window.addEventListener('hashchange',()=>App.render());

@@ -49,11 +49,14 @@ const DB = {
 const Auth = {
   user:null,
   init(){ const id=sessionStorage.getItem('lmslkt_uid')||localStorage.getItem('lmslkt_uid'); this.user = id ? DB.get('users',id)||null : null; },
+  find(username){ const k=noAccent(String(username||'')).trim().toLowerCase(); return DB.all('users').find(x=>noAccent(String(x.username)).trim().toLowerCase()===k); },
+  check(u,pw){ const p=String(pw??''); return !!u&&!!u.pw&&(u.pw===hashPw(p.trim())||u.pw===hashPw(p)); },
   login(username,pw,remember){
-    const u = DB.all('users').find(x=>x.username.toLowerCase()===String(username).trim().toLowerCase());
-    if(!u || u.pw!==hashPw(pw)) return false;
+    const u = this.find(username);
+    if(!u) return 'nouser';
+    if(!this.check(u,pw)) return 'wrongpw';
     if(u.locked) return 'locked';
-    this.user=u; sessionStorage.setItem('lmslkt_uid',u.id); if(remember) localStorage.setItem('lmslkt_uid',u.id);
+    this.user=u; try{ sessionStorage.setItem('lmslkt_uid',u.id); if(remember) localStorage.setItem('lmslkt_uid',u.id); }catch(e){}
     u.lastLogin=Date.now(); DB.save(); return true;
   },
   logout(){ this.user=null; sessionStorage.removeItem('lmslkt_uid'); localStorage.removeItem('lmslkt_uid'); location.hash='#/'; App.render(); },
@@ -65,7 +68,9 @@ const Sync = {
   get url(){ return (DB.data.settings.apiUrl||CFG.apiUrl||'').trim(); },
   get on(){ return !!this.url; },
   dirty:false, timer:null, busy:false,
-  markDirty(col){ if(!this.on) return; if(col==='submissions'||col==='progress') return; this.dirty=true; clearTimeout(this.timer);
+  warned:0,
+  markDirty(col){ if(!this.on) return;
+    if(col==='users'&&Auth.is('admin','teacher')&&!DB.data.settings.writeKey&&Date.now()-this.warned>60000){ this.warned=Date.now(); setTimeout(()=>toast('⚠ Chưa nhập Khoá ghi trong Cài đặt: tài khoản/mật khẩu mới CHƯA lên máy chủ – học sinh sẽ bị báo sai mật khẩu','bad'),300); } if(col==='submissions'||col==='progress') return; this.dirty=true; clearTimeout(this.timer);
     if(Auth.is('admin','teacher') && DB.data.settings.writeKey) this.timer=setTimeout(()=>this.push().catch(()=>{}),2500); },
   async call(action, payload={}, method='POST'){
     if(!this.on) throw new Error('Chưa cấu hình máy chủ');
@@ -117,32 +122,21 @@ function exportXlsx(name,sheets){ // sheets: {Tên: [[...],[...]]}
   Object.entries(sheets).forEach(([n,aoa])=>{ const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=(aoa[0]||[]).map((_,i)=>({wch:Math.min(45,Math.max(8,...aoa.slice(0,200).map(r=>String(r[i]??'').length+2)))})); XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31)); });
   XLSX.writeFile(wb,name);
 }
-function readXlsx(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; res(XLSX.utils.sheet_to_json(ws,{header:1,defval:''})); }catch(err){rej(err);} }; fr.onerror=rej; fr.readAsArrayBuffer(file); }); }
+function readXlsx(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; res(XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false}).map(r=>r.map(c=>typeof c==='string'?c.trim():c))); }catch(err){rej(err);} }; fr.onerror=rej; fr.readAsArrayBuffer(file); }); }
 function readText(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=e=>res(e.target.result); fr.onerror=rej; fr.readAsText(file,'utf-8'); }); }
 function pickFile(accept,cb){ const i=document.createElement('input'); i.type='file'; i.accept=accept; i.onchange=()=>i.files[0]&&cb(i.files[0]); i.click(); }
 /* Xuất Word (.doc HTML) – giữ LaTeX dạng $...$ để chuyển MathType bằng add-in */
-/* Xuất Word: MHTML (.doc) có nhúng hình PNG – Word mở trực tiếp; công thức giữ dạng LaTeX $...$ */
+/* Xuất Word .docx: xem docx.js – công thức biên dịch sang Equation của Word, hình nhúng PNG */
 function svgToPng(svg,k=2){ return new Promise(res=>{ const m=svg.match(/width="([\d.]+)"\s+height="([\d.]+)"/); const w=m?+m[1]:300,h=m?+m[2]:200; const img=new Image();
   img.onload=()=>{ try{ const c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height); res({data:c.toDataURL('image/png').split(',')[1],w,h}); }catch(e){ res(null); } };
   img.onerror=()=>res(null); let s=svg; if(!/xmlns=/.test(s)) s=s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"'); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); }); }
 const b64utf8=s=>{ const u=new TextEncoder().encode(s); let bin=''; for(let i=0;i<u.length;i+=32768) bin+=String.fromCharCode.apply(null,u.subarray(i,i+32768)); return btoa(bin); };
 const wrap76=s=>s.replace(/(.{76})/g,'$1\r\n');
-async function exportWord(name,title,html,{size=12,font='Times New Roman'}={}){
-  const svgs=[]; html=html.replace(/<svg[\s\S]*?<\/svg>/g,m=>{ svgs.push(m); return `@@IMG${svgs.length-1}@@`; });
-  if(svgs.length) toast('Đang chuyển '+svgs.length+' hình sang ảnh…');
-  const imgs=await Promise.all(svgs.map(x=>svgToPng(x)));
-  html=html.replace(/@@IMG(\d+)@@/g,(_,i)=>{ const im=imgs[i]; if(!im) return ''; const W=Math.round(Math.min(im.w,320)*.9), H=Math.round(W*im.h/im.w); return `<img src="img${i}.png" width="${W}" height="${H}">`; });
-  const doc=`<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>${esc(title)}</title>
-  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
-  <style>@page Section1{size:21cm 29.7cm;margin:1.5cm 1.5cm 1.5cm 2cm}div.Section1{page:Section1}body{font-family:"${font}";font-size:${size}pt;line-height:1.25}
-  table{border-collapse:collapse}td,th{border:1px solid #000;padding:2pt 5pt;font-size:${size-1}pt;vertical-align:top}th{background:#e8ecf7}
-  h1{font-size:${size+3}pt;text-align:center;margin:4pt 0}h2{font-size:${size+1}pt;margin:10pt 0 4pt}h3{font-size:${size}pt;margin:8pt 0 3pt}p{margin:2pt 0}.c{text-align:center}
-  table.nb td{border:none;font-size:${size}pt;padding:1pt 4pt 1pt 0}table.opt4 td{width:25%}table.opt2 td{width:50%}p.part{margin-top:8pt}p.qp{margin-top:5pt}</style></head><body><div class="Section1">${html}</div></body></html>`;
-  if(!imgs.some(Boolean)){ download(name,'\ufeff'+doc,'application/msword'); return; }
-  const B='----=_NextPart_LMSLKT_'+Date.now();
-  let m=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${B}"; type="text/html"\r\n\r\n--${B}\r\nContent-Type: text/html; charset="utf-8"\r\nContent-Transfer-Encoding: base64\r\nContent-Location: file:///C:/LMSLKT/de.htm\r\n\r\n${wrap76(b64utf8(doc))}\r\n`;
-  imgs.forEach((im,i)=>{ if(im) m+=`--${B}\r\nContent-Type: image/png\r\nContent-Transfer-Encoding: base64\r\nContent-Location: file:///C:/LMSLKT/img${i}.png\r\n\r\n${wrap76(im.data)}\r\n`; });
-  m+=`--${B}--\r\n`; download(name,m,'application/msword');
+async function exportWord(name,title,html,{size=12,font='Times New Roman',footer=''}={}){
+  try{ toast('Đang biên dịch công thức và hình vẽ sang Word…');
+    const blob=await Docx.make(html,{size,font,title,footer});
+    download(String(name).replace(/\.docx?$/i,'')+'.docx',blob); toast('Đã xuất Word (.docx) – công thức là Equation của Word','ok');
+  }catch(e){ console.error(e); toast('Lỗi xuất Word: '+e.message,'bad'); }
 }
 /* Tạo file .zip (không nén) */
 const CRC_T=(()=>{ const t=[]; for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
@@ -156,9 +150,28 @@ function makeZip(files){ const enc=new TextEncoder(), parts=[], cen=[]; let off=
   const cs=cen.reduce((s,a)=>s+a.length,0); const e=new DataView(new ArrayBuffer(22)); e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cs,true); e.setUint32(16,off,true);
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:'application/zip'}); }
 const b64ToBytes=b=>{ const s=atob(b); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; };
-function printHtml(title,html){ const w=window.open('','_blank'); if(!w){toast('Trình duyệt chặn cửa sổ mới','bad');return;}
-  w.document.write(`<html><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${new URL('assets/vendor/katex/katex.min.css',location.href)}"><style>body{font-family:"Times New Roman";font-size:13pt;padding:20px 40px;line-height:1.4}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4px 6px}h1{text-align:center;font-size:17pt}.c{text-align:center}.nb td{border:0}table.opt4 td{width:25%}table.opt2 td{width:50%}.qfig-svg{max-width:300px;height:auto}p{margin:3px 0}@media print{button{display:none}}</style></head><body><button onclick="print()" style="float:right;padding:8px 16px">🖨 In / Lưu PDF</button>${html}
-  <script src="${new URL('assets/vendor/katex/katex.min.js',location.href)}"><\/script><script src="${new URL('assets/vendor/katex/auto-render.min.js',location.href)}"><\/script><script>window.onload=()=>renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})<\/script></body></html>`); w.document.close(); }
+/* In / PDF: biên dịch toàn bộ công thức bằng KaTeX trước, rồi in trong khung ẩn (không phụ thuộc mạng, không lộ mã LaTeX) */
+async function printHtml(title,html){
+  const box=document.createElement('div'); box.innerHTML=html; document.body.appendChild(box); box.style.cssText='position:absolute;left:-99999px;top:0;width:800px';
+  renderMath(box); const body=box.innerHTML; box.remove();
+  const css=new URL('assets/vendor/katex/katex.min.css',location.href).href;
+  const doc=`<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${css}">
+  <style>@page{size:A4;margin:14mm 14mm 14mm 18mm}*{box-sizing:border-box}body{font-family:"Times New Roman",Times,serif;font-size:13pt;line-height:1.4;margin:0;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table{border-collapse:collapse;width:100%;page-break-inside:avoid}td,th{border:1px solid #000;padding:3px 6px;vertical-align:top}th{background:#e8ecf7}
+  table.nb td{border:0!important;padding:2px 10px 2px 0}table.opt4 td{width:25%}table.opt2 td{width:50%}h1{text-align:center;font-size:16pt;margin:6px 0}h2{font-size:14pt}h3{font-size:13pt;margin:8px 0 4px}
+  p{margin:3px 0}.c{text-align:center}.qp{margin-top:7px}.part{margin-top:10px}.qfigp{text-align:center;page-break-inside:avoid}.qfig-svg{max-width:300px;height:auto}
+  .katex{font-size:1.06em}.katex-display{margin:4px 0}.th-box{border:1px solid #999;border-radius:6px;padding:8px 12px;margin:10px 0}.th-box>b{display:block;margin-bottom:4px}.th-fig{text-align:center}
+  .bar{display:none}@media screen{body{padding:20px 40px;max-width:900px;margin:auto}}</style></head><body>${body}</body></html>`;
+  const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(mobile){ const w=window.open('','_blank'); if(!w){ toast('Trình duyệt chặn cửa sổ mới – hãy cho phép cửa sổ bật lên','bad'); return; }
+    w.document.open(); w.document.write(doc.replace('<body>','<body><button onclick="print()" style="position:fixed;right:12px;top:12px;padding:10px 16px;font-size:15px">🖨 In / Lưu PDF</button>')); w.document.close(); return; }
+  const f=document.createElement('iframe'); f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'; document.body.appendChild(f);
+  const d=f.contentDocument; d.open(); d.write(doc); d.close();
+  await new Promise(r=>{ let done=false; const go=()=>{ if(!done){ done=true; r(); } }; f.onload=go; if(d.readyState==='complete') setTimeout(go,50); setTimeout(go,3000); });
+  try{ await d.fonts.ready; }catch(e){}
+  try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ toast('Không mở được hộp thoại in: '+e.message,'bad'); }
+  setTimeout(()=>f.remove(),120000);
+}
 /* Biểu đồ cột SVG */
 function barChart(labels,values,{h=200,color='#6366f1',fmt=v=>v}={}){
   const max=Math.ceil(Math.max(1,...values)/4)*4, n=labels.length, W=Math.max(320,n*48), bw=Math.min(36,(W-40)/n*0.6);

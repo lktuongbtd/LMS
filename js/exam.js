@@ -156,7 +156,7 @@ const Exam = {
     return `<table class="nb hdr" style="width:100%"><tr><td class="c" style="width:44%;vertical-align:top">${esc(H.so)}<br><b>${esc(H.truong)}</b><br><span style="letter-spacing:-1pt">────────</span><br>${H.loai?box(H.loai)+'<br>':''}<i>${esc(H.ghichu||`(Đề có ${nq} câu)`)}</i></td>
       <td class="c" style="vertical-align:top"><b>${esc(H.kythi).toUpperCase()}</b><br>${H.namhoc?`<b>NĂM HỌC ${esc(H.namhoc)}</b><br>`:''}<b>Môn: ${esc(subjName(exam.subject)).toUpperCase()} – Lớp ${exam.grade}</b><br><i>Thời gian làm bài: ${exam.duration} phút, không kể thời gian phát đề</i></td></tr></table>
       ${H.diem?`<table border="1" style="width:100%;margin:6pt 0"><tr><td style="width:22%;height:46pt;vertical-align:top"><b>Điểm</b></td><td style="vertical-align:top"><b>Lời phê của giáo viên</b></td></tr></table>`:''}
-      <table class="nb" style="width:100%;margin:4pt 0 8pt"><tr><td>Họ, tên thí sinh: ...................................................................<br>${H.sbd?'Số báo danh: ................................':'Lớp: ................................'}</td><td style="text-align:right;vertical-align:middle">${box('Mã đề thi: '+(variant?variant.code:'000'))}</td></tr></table>`; },
+      <table class="nb" style="width:100%;margin:4pt 0 8pt"><tr><td>Họ, tên thí sinh: ..............................................<br>${H.sbd?'Số báo danh: ................................':'Lớp: ................................'}</td><td style="text-align:right;vertical-align:middle">${box('Mã đề thi: '+(variant?variant.code:'000'))}</td></tr></table>`; },
   examHtml(exam,variant,{withAnswer=false,header}={}){
     const items=this.items(exam,variant); const g=groupBy(items,it=>it.type); const H=this.header(exam,header);
     let h=this.headerHtml(exam,variant,H,items.length);
@@ -168,7 +168,7 @@ const Exam = {
   },
   answerSheetHtml(exam,variant,H){
     const items=this.items(exam,variant); const g=groupBy(items,it=>it.type); H=H||this.header(exam);
-    const bub=t=>`<span style="display:inline-block;width:13pt;height:13pt;border:1pt solid #000;border-radius:50%;text-align:center;font-size:8pt;line-height:13pt;margin:0 1pt">${t}</span>`;
+    const CIR={A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ','':'○'}; const bub=t=>`<span style="font-size:14pt;letter-spacing:3pt">${CIR[t]||t}</span>`;
     let h=`<h2 class="c" style="text-align:center">PHIẾU TRẢ LỜI – ${esc(H.kythi).toUpperCase()}</h2><p>Họ tên: ........................................................ Lớp: ........ &nbsp; Mã đề: <b>${variant?variant.code:'000'}</b></p>`;
     if(g.mcq){ const cols=Math.ceil(g.mcq.length/10); h+=`<p><b>PHẦN I.</b> Tô kín một ô tròn tương ứng với phương án đúng.</p><table border="1" style="width:100%"><tr>`; for(let c=0;c<cols;c++){ h+=`<td style="vertical-align:top">`+g.mcq.slice(c*10,c*10+10).map(it=>`<div style="margin:2pt 0"><b style="display:inline-block;width:18pt">${it.no}</b>${LETTER.split('').map(bub).join('')}</div>`).join('')+'</td>'; } h+='</tr></table>'; }
     if(g.tf) h+=`<p><b>PHẦN II.</b> Đánh dấu Đúng (Đ) hoặc Sai (S) cho từng ý.</p><table border="1" style="width:100%"><tr><th></th>${g.tf.map(it=>`<th colspan="2">Câu ${it.no}</th>`).join('')}</tr><tr><td></td>${g.tf.map(()=>'<td class="c">Đ</td><td class="c">S</td>').join('')}</tr>${'abcd'.split('').map(x=>`<tr><td class="c">${x})</td>${g.tf.map(()=>`<td class="c">${bub('')}</td><td class="c">${bub('')}</td>`).join('')}</tr>`).join('')}</table>`;

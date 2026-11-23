@@ -82,7 +82,11 @@ const Param = {
     const parts=str.split(/(\$\$?[^$]*\$\$?)/g);
     return parts.map(seg=>{ const inMath=/^\$/.test(seg);
       return seg.replace(/\{=([^{}]+)\}/g,(_,e)=>{ try{ return this.fmt(this.ev(e,vals),inMath); }catch(err){ return '[lỗi:'+e+']'; } })
-                .replace(/\{([a-zA-Z]\w*)\}/g,(m,n)=> n in vals ? this.fmt(vals[n],inMath) : m); }).join(''); },
+                .replace(/\{([a-zA-Z]\w*)\}/g,(m,n)=> n in vals ? this.fmt(vals[n],inMath) : m); })
+      .map(seg=>/^\$/.test(seg)&&seg!==undefined ? this.tidy(seg) : seg).join(''); },
+  tidy(m){ // chuẩn hoá biểu thức sau khi thay số: 1x → x, +- → -, -- → +
+    return m.replace(/([=+\-(,;\s{\[|$]|\\left\()1(?=[a-zA-Z(]|\\sqrt|\\pi|\\ln|\\log|\\sin|\\cos)/g,(a,b)=>b)
+      .replace(/\+\s*-/g,'-').replace(/-\s*-/g,'+').replace(/-\s*\+/g,'-'); },
   has(q){ return !!(q && q.params && String(q.params).trim()); },
   instantiate(q,seed){
     if(!this.has(q)) return q;

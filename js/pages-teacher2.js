@@ -108,9 +108,9 @@ function exportExamModal(ex){
     <h3>1. Tiêu đề đề thi</h3>${headerFieldsHtml(H0)}<label style="display:flex;gap:6px;align-items:center;font-weight:500;margin-top:8px"><input type="checkbox" class="chk" id="exSaveH" checked> Lưu tiêu đề này cho đề</label>
     <h3 style="margin-top:14px">2. Nội dung xuất</h3><div class="field"><label>Mã đề</label><div class="pill-list">${vs.length?vs.map(v=>`<label style="font-weight:500;display:flex;gap:4px;align-items:center"><input type="checkbox" class="chk" data-v="${v.code}" checked> ${v.code}</label>`).join(''):'<span class="muted">Đề chưa trộn – xuất đề gốc (mã 000)</span>'}</div></div>
     ${[['eqE','Đề thi (từng mã)',1],['eqK','Bảng đáp án các mã',1],['eqS','Đề có lời giải chi tiết',0],['eqM','Ma trận của đề',0],['eqP','Bản đặc tả của đề',0]].map(([id,t,c])=>`<label style="display:flex;gap:6px;align-items:center;margin:5px 0;font-weight:500"><input type="checkbox" class="chk" id="${id}" ${c?'checked':''}> ${t}</label>`).join('')}
-    <div class="note info" style="margin-top:8px">• <b>Word</b>: hình vẽ được nhúng thành ảnh; công thức giữ dạng LaTeX <code>$...$</code> (dùng add-in chuyển sang MathType/Equation).<br>• <b>In/PDF</b>: công thức và hình hiển thị đẹp ngay.<br>• <b>LaTeX ex_test</b>: file .tex theo gói ex_test kèm thư mục hình (zip).</div></div>
+    <div class="note info" style="margin-top:8px">• <b>Word (.docx)</b>: công thức được <b>biên dịch sẵn thành Equation của Word</b> (bấm vào sửa được; chuyển sang MathType bằng MathType → Convert Equations), hình vẽ nhúng sẵn, có số trang.<br>• <b>In/PDF</b>: công thức được biên dịch trước khi in – chọn máy in “Lưu dưới dạng PDF”.<br>• <b>LaTeX ex_test</b>: file .tex theo gói ex_test kèm thư mục hình (zip).</div></div>
     <div><div class="row"><h3 class="grow" style="margin:0">Xem trước</h3><select id="exPv" style="width:150px">${opts([{v:'',t:'Mã gốc'},...vs.map(v=>({v:v.code,t:'Mã '+v.code}))],vs[0]?vs[0].code:'')}</select></div><div id="exPrev" class="paper"></div></div></div>`,
-    foot:`<button class="btn" data-x>Huỷ</button><button class="btn" id="exT">📐 LaTeX ex_test (.zip)</button><button class="btn" id="exP">🖨 In / PDF</button><button class="btn pri" id="exW">⬇ Word (.doc)</button>`,onOpen:(m,close)=>{
+    foot:`<button class="btn" data-x>Huỷ</button><button class="btn" id="exT">📐 LaTeX ex_test (.zip)</button><button class="btn" id="exP">🖨 In / PDF</button><button class="btn pri" id="exW">⬇ Word (.docx)</button>`,onOpen:(m,close)=>{
       const H=()=>readHeader(m);
       const pv=()=>{ const v=vs.find(x=>x.code===$('#exPv',m).value)||null; $('#exPrev',m).innerHTML=Exam.examHtml(ex,v,{header:H()}); $$('#exPrev table[border]',m).forEach(t=>t.classList.add('tbl')); renderMath($('#exPrev',m)); };
       let tm; m.addEventListener('input',e=>{ if(e.target.id&&e.target.id.startsWith('hd_')){ clearTimeout(tm); tm=setTimeout(pv,400);} }); m.addEventListener('change',e=>{ if(e.target.id==='exPv'||(e.target.id||'').startsWith('hd_')) pv(); });
@@ -123,7 +123,7 @@ function exportExamModal(ex){
         const mx=Exam.matrixFromExam(ex); if($('#eqM',m).checked) parts.push(`<h1>MA TRẬN ĐỀ – ${esc(ex.title).toUpperCase()}</h1>`+Exam.matrixHtml(mx));
         if($('#eqP',m).checked) parts.push(`<h1>BẢN ĐẶC TẢ ĐỀ – ${esc(ex.title).toUpperCase()}</h1>`+Exam.specHtml(mx));
         return parts.join(br); };
-      $('#exW',m).onclick=()=>{ saveH(); exportWord(slug(ex.title)+'.doc',ex.title,build(),{size:H().size}); };
+      $('#exW',m).onclick=()=>{ saveH(); exportWord(slug(ex.title),ex.title,build(),{size:H().size,footer:subjName(ex.subject)+' '+ex.grade}); };
       $('#exP',m).onclick=()=>{ saveH(); printHtml(ex.title,build()); };
       $('#exT',m).onclick=async()=>{ saveH(); const files=[]; const h=H(); for(const v of chosen()){ const r=Exam.exTest(ex,v,{withSolution:$('#eqS',m).checked,header:h}); files.push({name:`de_${v?v.code:'000'}.tex`,data:r.tex});
           for(const im of r.imgs){ const p=await svgToPng(im.svg,3); if(p) files.push({name:im.name,data:b64ToBytes(p.data)}); } }
@@ -323,7 +323,7 @@ Router.add('settings',el=>{
    <div class="card" style="grid-column:1/-1"><h3>📝 Mẫu tiêu đề đề thi (mặc định cho mọi đề)</h3>${headerFieldsHtml(Exam.header({}),'sh')}<div class="row" style="margin-top:8px"><button class="btn pri" data-act="saveHdr">Lưu mẫu tiêu đề</button><button class="btn" data-act="pvHdr">Xem trước</button></div><div id="shPrev" class="paper" style="margin-top:10px;display:none"></div></div>
    <div class="card"><h3>💾 Sao lưu & khôi phục</h3><p class="muted">Dữ liệu đang lưu trong trình duyệt này (${size} KB). Nên sao lưu định kỳ.</p>
      <div class="row"><button class="btn pri" data-act="backup">⬇ Sao lưu (.json)</button><button class="btn" data-act="restore">⬆ Khôi phục</button>${isAdmin()?'<button class="btn bad" data-act="reset">Xoá & nạp lại dữ liệu mẫu</button>':''}</div></div>
-   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 2.0 · ${new Date().getFullYear()}</p></div>
+   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 2.1 · ${new Date().getFullYear()}</p></div>
   </div>`;
   bindPwForm(el);
   const msg=(t,ok)=>{ $('#stMsg',el).innerHTML=`<div class="note ${ok?'info':''}">${t}</div>`; };

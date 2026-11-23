@@ -168,7 +168,7 @@ const Fig = (()=>{
 
   const KINDS={chop,hop,langtru,tamgiac,hbh,duongtron,oxyz,dothi,cay,hopbi,xucxac,bieudo,tansuat,hopcat,thang,tru,non,matcau,cong,cotden,mach};
   function parse(spec){ const s=String(spec||'').trim(); const m=s.match(/^@(\w+)\s*([\s\S]*)$/); if(!m) return null; const o={};
-    m[2].split(';').map(x=>x.trim()).filter(Boolean).forEach(kv=>{ const i=kv.indexOf('='); if(i>0) o[kv.slice(0,i).trim()]=kv.slice(i+1).trim().replace(/^"|"$/g,''); }); return {kind:m[1],o}; }
+    m[2].split(/;(?=\s*[a-zA-Z]\w*\s*=)/).map(x=>x.trim()).filter(Boolean).forEach(kv=>{ const i=kv.indexOf('='); if(i>0) o[kv.slice(0,i).trim()]=kv.slice(i+1).trim().replace(/^"|"$/g,''); }); return {kind:m[1],o}; }
   function render(spec){ const s=String(spec||'').trim(); if(!s) return ''; if(/^<svg[\s>]/i.test(s)) return s.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/\son\w+="[^"]*"/gi,'').replace(/^<svg(?![^>]*class=)/i,'<svg class="qfig-svg"');
     const p=parse(s); if(!p||!KINDS[p.kind]) return `<div class="note">Không nhận dạng được hình “${esc2(s.slice(0,40))}”</div>`;
     try{ return KINDS[p.kind](p.o); }catch(e){ return `<div class="note">Lỗi vẽ hình: ${esc2(e.message)}</div>`; } }
