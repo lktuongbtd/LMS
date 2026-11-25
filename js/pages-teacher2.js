@@ -15,10 +15,11 @@ function newMatrixModal(){
 function buildExamFromMatrixModal(mx){
   modal({title:'Tạo đề từ ma trận',body:`<div class="field"><label>Tên đề</label><input type="text" id="beT" value="${esc('Đề kiểm tra '+subjName(mx.subject)+' '+mx.grade)}"></div>
     <div class="grid g3"><div class="field"><label>Thời gian (phút)</label><input type="number" id="beD" value="${mx.duration||45}"></div><div class="field"><label>Số mã đề trộn</label><input type="number" id="beN" value="4" min="0" max="24"></div><div class="field"><label>Mã đề bắt đầu</label><input type="number" id="beC" value="101"></div></div>
+    <div class="field"><label>Lấy câu hỏi từ</label><select id="beBank">${bankOptions('',true)}</select></div>
     <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="chk" id="beA" checked> Tự sinh câu “số tương tự” khi ngân hàng thiếu câu</label>
     <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" class="chk" id="beDN" checked> Mỗi mã đề thay số khác nhau (câu tham số)</label>`,
     foot:`<button class="btn" data-x>Huỷ</button><button class="btn pri" id="beGo">Tạo đề</button>`,onOpen:(m,close)=>{ $('#beGo',m).onclick=()=>{
-      const r=Exam.buildFromMatrix(mx,{autoClone:$('#beA',m).checked}); if(!r.questionIds.length) return toast('Ngân hàng chưa có câu phù hợp ma trận','bad');
+      const r=Exam.buildFromMatrix(mx,{autoClone:$('#beA',m).checked,bank:$('#beBank',m).value}); if(!r.questionIds.length) return toast('Ngân hàng chưa có câu phù hợp ma trận','bad');
       r.newQuestions.forEach(q=>{ q.ownerId=me().id; DB.data.questions.push(q); });
       const ex={id:uid('ex'),title:$('#beT',m).value.trim(),subject:mx.subject,grade:mx.grade,duration:+$('#beD',m).value||45,questionIds:r.questionIds,matrixId:mx.id,createdBy:me().id,createdAt:Date.now(),variants:[]};
       const n=+$('#beN',m).value; if(n>0) Exam.mix(ex,n,{startCode:+$('#beC',m).value||101,diffNumbers:$('#beDN',m).checked});
@@ -323,7 +324,7 @@ Router.add('settings',el=>{
    <div class="card" style="grid-column:1/-1"><h3>📝 Mẫu tiêu đề đề thi (mặc định cho mọi đề)</h3>${headerFieldsHtml(Exam.header({}),'sh')}<div class="row" style="margin-top:8px"><button class="btn pri" data-act="saveHdr">Lưu mẫu tiêu đề</button><button class="btn" data-act="pvHdr">Xem trước</button></div><div id="shPrev" class="paper" style="margin-top:10px;display:none"></div></div>
    <div class="card"><h3>💾 Sao lưu & khôi phục</h3><p class="muted">Dữ liệu đang lưu trong trình duyệt này (${size} KB). Nên sao lưu định kỳ.</p>
      <div class="row"><button class="btn pri" data-act="backup">⬇ Sao lưu (.json)</button><button class="btn" data-act="restore">⬆ Khôi phục</button>${isAdmin()?'<button class="btn bad" data-act="reset">Xoá & nạp lại dữ liệu mẫu</button>':''}</div></div>
-   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 2.1 · ${new Date().getFullYear()}</p></div>
+   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 2.2 · ${new Date().getFullYear()}</p></div>
   </div>`;
   bindPwForm(el);
   const msg=(t,ok)=>{ $('#stMsg',el).innerHTML=`<div class="note ${ok?'info':''}">${t}</div>`; };

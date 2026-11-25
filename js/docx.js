@@ -126,7 +126,7 @@ const Docx = (()=>{
   /* ================= Đóng gói .docx ================= */
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
   async function make(html,{size=12,font='Times New Roman',title='',footer=''}={}){
-    const svgs=[]; html=html.replace(/<svg[\s\S]*?<\/svg>/g,m=>{ svgs.push(m); return `<img data-img="${svgs.length-1}">`; });
+    const svgs=[]; html=html.replace(/<svg[\s\S]*?<\/svg>|<img[^>]*src="data:image\/[^"]+"[^>]*>/g,m=>{ svgs.push(m); return `<img data-img="${svgs.length-1}">`; });
     const imgs=await Promise.all(svgs.map(s=>svgToPng(s,2.5)));
     const {body,rels}=build(html,{size,font,imgs});
     const hdr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';

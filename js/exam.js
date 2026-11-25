@@ -71,9 +71,10 @@ const Exam = {
   },
   mxCount(mx,type,lv){ return sum(mx.rows.map(r=>((r.c[type]||{})[lv])||0)); },
   mxTypes(mx){ const t=new Set(this.typesOf(mx.subject)); mx.rows.forEach(r=>Object.keys(r.c).forEach(k=>t.add(k))); return PART_ORDER.filter(x=>t.has(x)); },
-  buildFromMatrix(mx,{autoClone=true}={}){
+  pool(){ return (typeof visibleQuestions==='function'&&Auth.user)?visibleQuestions():DB.all('questions'); },
+  buildFromMatrix(mx,{autoClone=true,bank=''}={}){
     const used=new Set(), ids={mcq:[],tf:[],short:[],essay:[]}, newQ=[], shortages=[];
-    const all=DB.all('questions').filter(q=>q.subject===mx.subject&&+q.grade===+mx.grade);
+    const all=this.pool().filter(q=>q.subject===mx.subject&&+q.grade===+mx.grade&&(!bank||(bank==='_sample'?!q.bankId:q.bankId===bank)));
     const lvOk=(q,lv)=>q.level===lv||(lv==='VD'&&q.level==='VDC');
     mx.rows.forEach(r=>{ this.mxTypes(mx).forEach(t=>MX_LEVELS.forEach(lv=>{
       const need=((r.c[t]||{})[lv])||0; if(!need) return;
@@ -189,7 +190,7 @@ const Exam = {
     const used=new Set(ex.questionIds); let nNum=0,nRep=0,nKeep=0; const ids=[];
     ex.questionIds.forEach(id=>{ const q=DB.get('questions',id); if(!q) return;
       if(Param.has(q)){ ids.push(id); nNum++; return; }
-      if(replace){ const cand=shuffle(DB.all('questions').filter(x=>x.subject===q.subject&&+x.grade===+q.grade&&x.topic===q.topic&&x.type===q.type&&x.level===q.level&&!used.has(x.id)));
+      if(replace){ const cand=shuffle(this.pool().filter(x=>x.subject===q.subject&&+x.grade===+q.grade&&x.topic===q.topic&&x.type===q.type&&x.level===q.level&&!used.has(x.id)));
         if(cand[0]){ used.add(cand[0].id); ids.push(cand[0].id); nRep++; return; } }
       ids.push(id); nKeep++; });
     const ne={...JSON.parse(JSON.stringify(ex)),id:uid('ex'),title:title||ex.title+' – đề tương tự',questionIds:ids,createdAt:Date.now(),createdBy:(Auth.user||{}).id,variants:[],similarOf:ex.id};

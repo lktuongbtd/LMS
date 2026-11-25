@@ -154,7 +154,7 @@ function theoryEditor(x){ const isNew=!x.t;
 /* ===================== TỰ LUYỆN ===================== */
 const PracState={subject:'toan',grade:12,topic:'',level:'',n:10};
 Router.add('practice',el=>{
-  const P=PracState; const pool=()=>DB.all('questions').filter(q=>q.shared!==false&&q.subject===P.subject&&+q.grade===+P.grade&&(!P.topic||q.topic===P.topic)&&(!P.level||q.level===P.level)&&q.type!=='essay');
+  const P=PracState; const pool=()=>DB.all('questions').filter(q=>(isSharedQ(q)||q.ownerId===me().id)&&q.subject===P.subject&&+q.grade===+P.grade&&(!P.topic||q.topic===P.topic)&&(!P.level||q.level===P.level)&&q.type!=='essay');
   const log=((DB.data.settings.pracLog||{})[me().id]||[]).slice(-8).reverse();
   el.innerHTML=head('Tự luyện','Luyện tập theo chủ đề – chấm ngay từng câu, có lời giải; câu tham số mỗi lần ra số khác')+
   `<div class="grid" style="grid-template-columns:1fr 320px;align-items:start"><div class="card"><div class="grid g4"><div class="field"><label>Môn</label><select id="pS">${opts(subjList(),P.subject)}</select></div><div class="field"><label>Lớp</label><select id="pG">${opts(GRADES,P.grade)}</select></div><div class="field"><label>Mức độ</label><select id="pL">${opts(LEVELS,P.level,'— Tất cả —')}</select></div><div class="field"><label>Số câu</label><select id="pN">${opts([5,10,15,20],P.n)}</select></div></div>

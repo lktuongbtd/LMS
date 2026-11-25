@@ -3,12 +3,12 @@
 const NAV = {
   teacher:[['Tổng quan',[['dashboard','🏠','Bảng điều khiển']]],
     ['Dạy học',[['classes','🏫','Lớp & Học sinh'],['lessons','📚','Học liệu'],['announcements','📣','Thông báo']]],
-    ['Đề & Ngân hàng',[['bank','❓','Ngân hàng câu hỏi'],['theory','📘','Ôn lý thuyết'],['matrices','🧮','Ma trận & Đặc tả'],['exams','📝','Đề thi & Trộn đề']]],
+    ['Đề & Ngân hàng',[['bank','❓','Ngân hàng câu hỏi'],['import','📄','Nhập Word/PDF/Ảnh'],['theory','📘','Ôn lý thuyết'],['matrices','🧮','Ma trận & Đặc tả'],['exams','📝','Đề thi & Trộn đề']]],
     ['Đánh giá',[['assignments','📤','Giao bài & Kết quả'],['gradebook','📒','Bảng điểm'],['progress','📈','Tiến độ học tập']]],
     ['Hệ thống',[['settings','⚙️','Cài đặt']]]],
   student:[['Học tập',[['home','🏠','Trang chủ'],['tasks','📝','Bài tập & Kiểm tra'],['my-lessons','📚','Học liệu'],['theory','📘','Ôn lý thuyết'],['practice','🎯','Tự luyện'],['my-results','🏆','Kết quả của tôi'],['account','👤','Tài khoản']]]]
 };
-const TITLES={dashboard:'Bảng điều khiển',classes:'Lớp & Học sinh',teachers:'Giáo viên',lessons:'Học liệu',announcements:'Thông báo',bank:'Ngân hàng câu hỏi',matrices:'Ma trận & Đặc tả',exams:'Đề thi',assignments:'Giao bài & Kết quả',gradebook:'Bảng điểm',progress:'Tiến độ học tập',settings:'Cài đặt',home:'Trang chủ',tasks:'Bài tập & Kiểm tra','my-lessons':'Học liệu',lesson:'Học liệu','my-results':'Kết quả của tôi',account:'Tài khoản',take:'Làm bài',theory:'Ôn lý thuyết',practice:'Tự luyện',try:'Làm thử',result:'Kết quả'};
+const TITLES={dashboard:'Bảng điều khiển',classes:'Lớp & Học sinh',teachers:'Giáo viên',lessons:'Học liệu',announcements:'Thông báo',bank:'Ngân hàng câu hỏi',matrices:'Ma trận & Đặc tả',exams:'Đề thi',assignments:'Giao bài & Kết quả',gradebook:'Bảng điểm',progress:'Tiến độ học tập',settings:'Cài đặt',home:'Trang chủ',tasks:'Bài tập & Kiểm tra','my-lessons':'Học liệu',lesson:'Học liệu','my-results':'Kết quả của tôi',account:'Tài khoản',take:'Làm bài',import:'Nhập đề Word / PDF / Ảnh',theory:'Ôn lý thuyết',practice:'Tự luyện',try:'Làm thử',result:'Kết quả'};
 const App = {
   render(){
     Take.stop(); $('#modal-root').innerHTML='';
@@ -16,7 +16,7 @@ const App = {
     if(!Auth.user){ app.innerHTML=this.loginHtml(); this.bindLogin(); return; }
     const role=Auth.user.role==='student'?'student':'teacher';
     let [page,...params]=(location.hash.replace(/^#\/?/,'')||'').split('/'); if(!page||!Router.pages[page]) page=role==='student'?'home':'dashboard';
-    const teacherOnly=['dashboard','classes','teachers','lessons','announcements','bank','matrices','exams','assignments','gradebook','progress','settings','try'];
+    const teacherOnly=['import','dashboard','classes','teachers','lessons','announcements','bank','matrices','exams','assignments','gradebook','progress','settings','try'];
     if(role==='student'&&teacherOnly.includes(page)) page='home';
     if(role==='teacher'&&['home','tasks','my-lessons','my-results','account','take'].includes(page)) page='dashboard';
     const nav=JSON.parse(JSON.stringify(NAV[role])); if(Auth.is('admin')) nav[4][1].unshift(['teachers','👨‍🏫','Giáo viên & Quản trị']);

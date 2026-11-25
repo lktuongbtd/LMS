@@ -27,6 +27,10 @@ Web app LMS chạy hoàn toàn trên **GitHub Pages** (không cần máy chủ t
 | **Tiêu đề & xuất đề** | Mẫu tiêu đề chuẩn (Sở – Trường – Kì thi – Năm học – ĐỀ CHÍNH THỨC – Mã đề – SBD – khung Điểm/Lời phê – dòng cuối), phương án tự xếp 4/2/1 cột như đề thật, kèm **phiếu trả lời**; xuất **Word .docx – công thức là Equation của Word (chuyển MathType 1 lệnh), có hình, số trang**, **In/PDF đã biên dịch công thức**, **LaTeX ex_test** (.zip kèm thư mục hình) |
 | **Ôn lý thuyết** | Tóm tắt kiến thức trọng tâm các môn (theo chương trình GDPT 2018 – bộ Kết nối tri thức), khung định nghĩa/công thức/lưu ý/ví dụ, có hình minh hoạ; giáo viên sửa/thêm chủ đề |
 | **Tự luyện** | Học sinh chọn môn – chủ đề – mức độ, chấm ngay từng câu kèm lời giải, lưu lịch sử luyện |
+| **Bộ ngân hàng** | Mỗi giáo viên tạo nhiều bộ ngân hàng 🔒 riêng tư hoặc 🌐 dùng chung toàn trường; sao chép/chuyển câu giữa các bộ; tạo đề từ ma trận chọn được bộ nguồn |
+| **Xưởng sinh câu** | Sinh hàng loạt câu khác số có hình vẽ từ 29 mẫu sinh câu LKT + câu tham số trong ngân hàng, lưu thẳng vào bộ ngân hàng |
+| **Nhập Word** | Tải .docx → tự chuyển về mẫu chuẩn: công thức Equation → LaTeX, ảnh giữ nguyên, **đáp án gạch chân / tô đỏ / tô vàng tự nhận**, đánh số tự động, phương án nằm chung dòng hoặc trong bảng, bảng đáp án cuối đề; sửa trực tiếp – xem trước ngay; tải lại **Word đã chuẩn hoá** |
+| **Nhập PDF / ảnh** | Nhận dạng bằng **AI Gemini** (chữ + công thức, khoá API miễn phí) hoặc **OCR** miễn phí, hoặc lấy lớp chữ PDF; **cắt hình** từ trang đề chèn vào câu |
 | **Khác** | Thông báo tới lớp, sao lưu/khôi phục JSON, giao diện responsive (điện thoại) |
 
 Cấu trúc đề được cài sẵn (sửa trong `js/bank.js` → `SUBJECTS`):
@@ -146,11 +150,21 @@ js/pages-teacher.js   tổng quan, lớp & học sinh, giáo viên, ngân hàng
 js/pages-teacher2.js  ma trận, đề thi, học liệu, giao bài, bảng điểm, tiến độ, thông báo, cài đặt
 js/pages-student.js   trang học sinh, làm bài, kết quả
 js/theory.js          ôn lý thuyết các môn + tự luyện theo chủ đề
+js/templates.js       29 mẫu sinh câu có hình + Xưởng sinh câu
+js/importer.js        nhập Word/PDF/ảnh: OMML→LaTeX, nhận diện đáp án, AI Gemini, OCR, cắt hình
 js/app.js             khung giao diện, đăng nhập, điều hướng
 gas/Code.gs           máy chủ đồng bộ Google Apps Script
 ```
 
-## 9. Hướng dẫn cập nhật phiên bản mới (không mất dữ liệu)
+## 9. Nhập đề từ Word – quy ước để máy tự nhận đúng
+
+- Mỗi câu bắt đầu bằng **Câu 1.** / **Câu 1:** (hoặc dùng đánh số tự động của Word).
+- Đáp án đúng: **gạch chân** hoặc **tô chữ màu đỏ** (hoặc tô nền vàng) phương án đúng; câu Đúng/Sai gạch chân/tô đỏ các ý **Đúng**.
+- Tiêu đề **PHẦN I / PHẦN II / PHẦN III** giúp máy biết loại câu (trắc nghiệm / đúng sai / trả lời ngắn).
+- Trả lời ngắn: dòng **Đáp án: …** hoặc **ĐS: …**; lời giải bắt đầu bằng **Lời giải** (có thể ghi “Chọn B”).
+- Công thức dùng **Equation của Word** (Insert → Equation). Công thức **MathType** cần chuyển trước: tab MathType → Convert Equations → *Microsoft Office equations*.
+
+## 10. Hướng dẫn cập nhật phiên bản mới (không mất dữ liệu)
 
 Dữ liệu (lớp, tài khoản, ngân hàng, đề, bài nộp) **không nằm trong mã nguồn** nên cập nhật mã không làm mất dữ liệu. Tuy vậy nên sao lưu trước.
 

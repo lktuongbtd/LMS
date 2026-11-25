@@ -176,7 +176,7 @@ const QImport = {
       lines.forEach(L=>{ const l=L.trimEnd(); let mm;
         if((mm=l.match(/^\s*(\*?)\s*([ABCD])[.)]\s*(.*)$/))){ if(mm[1]) correct=opts.length; opts.push(mm[3]); mode='opt'; }
         else if((mm=l.match(/^\s*([abcd])\)\s*(.*)$/))){ let t=mm[2], v=null; const k=t.match(/\(\s*(Đ|S|Đúng|Sai|T|F)\s*\)\s*$/i); if(k){ v=/^(Đ|Đúng|T)$/i.test(k[1]); t=t.slice(0,k.index).trim(); } sts.push(t); stAns.push(v); mode='st'; }
-        else if((mm=l.match(/^\s*(Đáp án|ĐA)\s*[:：]\s*(.*)$/i))){ answer=mm[2].trim(); mode='ans'; }
+        else if((mm=l.match(/^\s*(Đáp án|ĐA|Đáp số|ĐS|Trả lời)\s*[:：]\s*(.*)$/i))){ answer=mm[2].trim(); mode='ans'; }
         else if((mm=l.match(/^\s*(Lời giải|Hướng dẫn|HD)\s*[:：]\s*(.*)$/i))){ explain=mm[2]; mode='exp'; }
         else if((mm=l.match(/^\s*Tham số\s*[:：]\s*(.*)$/i))){ q.params=mm[1].trim(); }
         else if((mm=l.match(/^\s*Hình\s*[:：]\s*(.*)$/i))){ q.figure=mm[1].trim(); }
@@ -188,7 +188,7 @@ const QImport = {
       let type=flags.type || (opts.length>=2?'mcq':sts.length>=2?'tf':(points!=null?'essay':'short'));
       q.type=type;
       if(type!=='tf'&&sts.length) q.content+='\n'+sts.map((s,i)=>'abcd'[i]+') '+s).join('\n');
-      if(type==='mcq'){ while(opts.length<4) opts.push(''); q.options=opts.slice(0,4); if(correct<0&&answer){ correct='ABCD'.indexOf(answer.trim().charAt(0).toUpperCase()); } q.answer=correct; if(correct<0) errors.push(`Câu ${res.length+1}: chưa có đáp án đúng (dùng *B. hoặc "Đáp án: B")`); }
+      if(type==='mcq'){ while(opts.length<4) opts.push(''); q.options=opts.slice(0,4); if(correct<0&&answer){ correct='ABCD'.indexOf(answer.trim().charAt(0).toUpperCase()); } if(correct<0){ const ch=(explain||'').match(/\bChọn\s+(?:đáp án\s+|phương án\s+)?([A-D])\b/i); if(ch) correct='ABCD'.indexOf(ch[1].toUpperCase()); } q.answer=correct; if(correct<0) errors.push(`Câu ${res.length+1}: chưa có đáp án đúng (dùng *B. hoặc "Đáp án: B")`); }
       else if(type==='tf'){ while(sts.length<4){ sts.push(''); stAns.push(null);} q.statements=sts.slice(0,4); let a=stAns.slice(0,4);
         if(answer && a.some(x=>x==null)){ const s=noAccent(answer).toUpperCase().replace(/[^DS]/g,''); a=[...s].slice(0,4).map(ch=>ch==='D'); }
         q.answer=a.map(x=>!!x); if(a.some(x=>x==null)) errors.push(`Câu ${res.length+1}: thiếu đáp án Đ/S cho một số ý`); }

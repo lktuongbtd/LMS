@@ -5,7 +5,29 @@ const isAdmin = () => Auth.is('admin');
 function myClasses(){ return DB.all('classes').filter(c=>isAdmin()||c.teacherId===me().id||(c.coTeachers||[]).includes(me().id)).sort((a,b)=>a.name.localeCompare(b.name,'vi',{numeric:true})); }
 function studentsOf(classId){ return DB.all('users').filter(u=>u.role==='student'&&u.classId===classId).sort((a,b)=>{ const la=a.name.split(' ').pop(), lb=b.name.split(' ').pop(); return la.localeCompare(lb,'vi')||a.name.localeCompare(b.name,'vi'); }); }
 function className(id){ const c=DB.get('classes',id); return c?c.name:''; }
-function visibleQuestions(){ return DB.all('questions').filter(q=>isAdmin()||q.shared!==false||q.ownerId===me().id); }
+/* ---- Bộ ngân hàng: riêng tư / dùng chung toàn trường ---- */
+function bankOf(q){ return q&&q.bankId?DB.get('banks',q.bankId):null; }
+function isSharedQ(q){ const b=bankOf(q); return b?b.share==='school':q.shared!==false; }
+function myBanks(){ return DB.all('banks').filter(b=>b.ownerId===me().id); }
+function usableBanks(){ return DB.all('banks').filter(b=>b.ownerId===me().id||b.share==='school'||isAdmin()); }
+function bankOptions(sel,withAll){ return (withAll?`<option value="">— Tất cả ngân hàng —</option><option value="_sample" ${sel==='_sample'?'selected':''}>📚 Ngân hàng mẫu (dùng chung)</option>`:`<option value="">📚 Ngân hàng chung của trường</option>`)+
+  (withAll?usableBanks():myBanks()).map(b=>`<option value="${b.id}" ${b.id===sel?'selected':''}>${b.ownerId===me().id?(b.share==='school'?'🌐':'🔒'):'👥'} ${esc(b.name)}${b.ownerId!==me().id?' – '+esc((DB.get('users',b.ownerId)||{}).name||''):''}</option>`).join(''); }
+function visibleQuestions(){ return DB.all('questions').filter(q=>isAdmin()||q.ownerId===me().id||isSharedQ(q)); }
+function banksModal(onDone){
+  const draw=m=>{ const list=usableBanks(); $('#bmList',m).innerHTML=list.length?`<div class="tbl-wrap"><table class="tbl"><tr><th>Tên bộ ngân hàng</th><th>Chủ sở hữu</th><th>Chế độ</th><th>Số câu</th><th></th></tr>${list.map(b=>{ const mine=b.ownerId===me().id||isAdmin(); const n=DB.all('questions').filter(q=>q.bankId===b.id).length;
+      return `<tr><td><b>${esc(b.name)}</b><br><small class="muted">${esc(b.note||'')}</small></td><td>${esc((DB.get('users',b.ownerId)||{}).name||'')}</td><td>${b.share==='school'?'<span class="badge ok">🌐 Dùng chung toàn trường</span>':'<span class="badge gray">🔒 Riêng tư</span>'}</td><td>${n}</td>
+      <td style="white-space:nowrap">${mine?`<button class="btn sm" data-bm="share" data-id="${b.id}">${b.share==='school'?'🔒 Đặt riêng tư':'🌐 Chia sẻ'}</button><button class="btn sm" data-bm="ren" data-id="${b.id}">✏️</button><button class="btn sm bad" data-bm="del" data-id="${b.id}">✕</button>`:`<button class="btn sm" data-bm="copy" data-id="${b.id}">⧉ Sao chép về bộ của tôi</button>`}</td></tr>`; }).join('')}</table></div>`:emptyBox('Chưa có bộ ngân hàng riêng','📁'); };
+  modal({title:'📁 Bộ ngân hàng câu hỏi',size:'lg',body:`<div class="note info">Mỗi giáo viên tạo được nhiều <b>bộ ngân hàng</b>: <b>🔒 Riêng tư</b> (chỉ mình thấy, dùng ra đề) hoặc <b>🌐 Dùng chung</b> (cả trường thấy và dùng). Câu không thuộc bộ nào nằm trong ngân hàng chung của trường.</div>
+    <div class="row" style="margin:10px 0"><input type="text" id="bmName" placeholder="Tên bộ mới, ví dụ: Ngân hàng Toán 12 – thầy Tường" style="max-width:420px"><select id="bmShare" style="max-width:200px"><option value="private">🔒 Riêng tư</option><option value="school">🌐 Dùng chung</option></select><button class="btn pri" id="bmAdd">➕ Tạo bộ</button></div><div id="bmList"></div>`,
+    onOpen:(m)=>{ draw(m);
+      $('#bmAdd',m).onclick=()=>{ const n=$('#bmName',m).value.trim(); if(!n) return toast('Nhập tên bộ ngân hàng','bad'); DB.upsert('banks',{id:uid('bk'),name:n,share:$('#bmShare',m).value,ownerId:me().id,createdAt:Date.now()}); $('#bmName',m).value=''; draw(m); onDone&&onDone(); };
+      on(m,'click','[data-bm]',b=>{ const k=DB.get('banks',b.dataset.id); const a=b.dataset.bm;
+        if(a==='share'){ k.share=k.share==='school'?'private':'school'; DB.upsert('banks',k); draw(m); onDone&&onDone(); }
+        if(a==='ren'){ const n=prompt('Tên mới:',k.name); if(n){ k.name=n.trim(); DB.upsert('banks',k); draw(m); onDone&&onDone(); } }
+        if(a==='del') confirmBox(`Xoá bộ “${esc(k.name)}”? Các câu hỏi trong bộ sẽ chuyển vào <b>ngân hàng riêng tư của bạn</b> (không bị mất).`,()=>{ DB.all('questions').filter(q=>q.bankId===k.id).forEach(q=>{ delete q.bankId; q.shared=false; }); DB.remove('banks',k.id); draw(m); onDone&&onDone(); });
+        if(a==='copy'){ const nb={id:uid('bk'),name:k.name+' (bản sao)',share:'private',ownerId:me().id,createdAt:Date.now()}; DB.data.banks.push(nb); const qs=DB.all('questions').filter(q=>q.bankId===k.id); qs.forEach(q=>DB.data.questions.push({...JSON.parse(JSON.stringify(q)),id:uid('q'),bankId:nb.id,ownerId:me().id,createdAt:Date.now()})); DB.save(); Sync.markDirty('questions'); toast(`Đã sao chép ${qs.length} câu`,'ok'); draw(m); onDone&&onDone(); }
+      }); }});
+}
 function myAssignments(){ return DB.all('assignments').filter(a=>isAdmin()||a.createdBy===me().id).sort((a,b)=>b.createdAt-a.createdAt); }
 function on(el,ev,sel,fn){ el.addEventListener(ev,e=>{ const t=e.target.closest(sel); if(t&&el.contains(t)) fn(t,e); }); }
 function head(title,sub,actions=''){ return `<div class="page-head"><div class="grow"><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div><div class="row">${actions}</div></div>`; }
@@ -98,9 +120,9 @@ Router.add('classes',(el,[cid])=>{
     if(a==='newcls') classModal(); if(a==='editcls') classModal(cur);
     if(a==='bulk') bulkUsersModal({role:'student',classId:cid,title:'Thêm học sinh hàng loạt'});
     if(a==='export') exportXlsx(`TaiKhoan_${cur.name}.xlsx`,{[cur.name]:[['STT','Họ và tên','Lớp','Tài khoản','Mật khẩu'],...st.map((x,i)=>[i+1,x.name,cur.name,x.username,x.initPw||'(HS đã đổi)'])]});
-    if(a==='resetall') confirmBox(`Cấp mật khẩu mới ngẫu nhiên cho ${st.length} học sinh lớp ${esc(cur.name)}?`,()=>{ st.forEach(x=>{ x.initPw=randPw(); x.pw=hashPw(x.initPw); x.pwAt=Date.now(); }); DB.save(); Sync.markDirty('users'); toast('Đã cấp lại mật khẩu','ok'); App.render(); });
+    if(a==='resetall') setPwModal(st,'cả lớp '+cur.name);
     if(a==='delcls') confirmBox(`Xoá lớp ${esc(cur.name)}? Học sinh sẽ không còn thuộc lớp nào (không xoá tài khoản).`,()=>{ st.forEach(x=>x.classId=null); DB.remove('classes',cur.id); location.hash='#/classes'; App.render(); });
-    if(a==='reset'){ u.initPw=randPw(); u.pw=hashPw(u.initPw); u.pwAt=Date.now(); DB.upsert('users',u); toast(`Mật khẩu mới của ${u.name}: ${u.initPw}`,'ok'); App.render(); }
+    if(a==='reset') setPwModal([u],u.name+' ('+u.username+')');
     if(a==='lock'){ u.locked=!u.locked; DB.upsert('users',u); App.render(); }
     if(a==='del') confirmBox(`Xoá tài khoản ${esc(u.name)}?`,()=>{ DB.remove('users',u.id); App.render(); });
     if(a==='edit') modal({title:'Sửa học sinh',body:`<div class="field"><label>Họ tên</label><input type="text" id="eN" value="${esc(u.name)}"></div><div class="field"><label>Tài khoản</label><input type="text" id="eU" value="${esc(u.username)}"></div><div class="field"><label>Chuyển lớp</label><select id="eC">${opts(myClasses().map(c=>({v:c.id,t:c.name})),u.classId)}</select></div>`,
@@ -119,12 +141,12 @@ Router.add('teachers',el=>{
     if(a==='bulk') bulkUsersModal({role:'teacher',title:'Thêm giáo viên hàng loạt'});
     if(a==='export') exportXlsx('DanhSach_GiaoVien.xlsx',{GiaoVien:[['Họ tên','Tài khoản','Vai trò','Mật khẩu cấp'],...ts.map(u=>[u.name,u.username,u.role,u.initPw||''])]});
     if(a==='role'){ if(u.id===me().id) return toast('Không đổi vai trò của chính mình','bad'); u.role=u.role==='admin'?'teacher':'admin'; DB.upsert('users',u); App.render(); }
-    if(a==='reset'){ u.initPw=randPw(); u.pw=hashPw(u.initPw); u.pwAt=Date.now(); DB.upsert('users',u); toast(`Mật khẩu mới: ${u.initPw}`,'ok'); App.render(); }
+    if(a==='reset') setPwModal([u],u.name+' ('+u.username+')');
     if(a==='del') confirmBox('Xoá tài khoản '+esc(u.name)+'?',()=>{ DB.remove('users',u.id); App.render(); }); });
 });
 
 /* ===================== NGÂN HÀNG CÂU HỎI ===================== */
-const BankState={subject:'',grade:'',topic:'',type:'',level:'',q:'',page:1,mine:false};
+const BankState={subject:'',grade:'',topic:'',type:'',level:'',q:'',page:1,mine:false,bank:''};
 function questionEditor(q,onSaved){
   const isNew=!q; q=q?JSON.parse(JSON.stringify(q)):{id:uid('q'),subject:BankState.subject||((me().subjects||[])[0])||'toan',grade:+BankState.grade||12,topic:BankState.topic||'',level:'NB',type:'mcq',content:'',options:['','','',''],answer:0,statements:['','','',''],explain:'',params:'',cond:'',shared:true};
   if(!q.options) q.options=['','','','']; if(!q.statements) q.statements=['','','',''];
@@ -148,14 +170,15 @@ function questionEditor(q,onSaved){
       <div class="note info" style="margin:8px 0">Khai báo: <code>a=1..9; b=-5..5!0; k=[2,3,5]; c==a+b</code>. Trong nội dung/phương án/đáp án dùng <code>{a}</code> hoặc biểu thức <code>{=2*a+b}</code>. Hàm: sqrt, abs, round(x,n), pow, min, max. Mỗi mã đề / mỗi lượt sinh sẽ ra bộ số khác nhau.</div>
       <div class="field"><label>Tham số</label><input type="text" id="qPar" value="${esc(q.params||'')}" placeholder="a=1..9; b=2..5"></div>
       <div class="field"><label>Điều kiện (tuỳ chọn)</label><input type="text" id="qCond" value="${esc(q.cond||'')}" placeholder="a!=b && a+b>3"></div></details>
-    <label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="qShared" class="chk" ${q.shared!==false?'checked':''}> Chia sẻ cho giáo viên khác trong trường</label>
+    <div class="grid g2" style="margin-top:10px;align-items:center"><div class="field" style="margin:0"><label>Lưu vào bộ ngân hàng</label><select id="qBank">${bankOptions(q.bankId||BankState.bank&&BankState.bank!=='_sample'&&BankState.bank||'')}</select></div>
+    <label style="display:flex;gap:6px;align-items:center;margin:18px 0 0"><input type="checkbox" id="qShared" class="chk" ${q.shared!==false?'checked':''}> Chia sẻ (khi lưu vào ngân hàng chung)</label></div>
    </div>
    <div><div class="row"><h3 class="grow" style="margin:0">Xem trước</h3><button class="btn sm" id="qReroll">🎲 Thử bộ số khác</button></div><div id="qPrev" style="margin-top:10px"></div></div>
   </div>`,
   foot:`<button class="btn" data-x>Huỷ</button>${isNew?'<button class="btn" id="qSaveNew">Lưu & thêm câu khác</button>':''}<button class="btn pri" id="qSave">Lưu câu hỏi</button>`,
   onOpen:(m,close)=>{
     let seed='p0';
-    const read=()=>{ const t=$('#qT',m).value; const o={...q,subject:$('#qS',m).value,grade:+$('#qG',m).value,type:t,level:$('#qL',m).value,topic:$('#qTopic',m).value.trim(),content:$('#qC',m).value,explain:$('#qE',m).value,figure:$('#qFig',m).value.trim(),params:$('#qPar',m).value.trim(),cond:$('#qCond',m).value.trim(),shared:$('#qShared',m).checked,updatedAt:Date.now()};
+    const read=()=>{ const t=$('#qT',m).value; const o={...q,subject:$('#qS',m).value,grade:+$('#qG',m).value,type:t,level:$('#qL',m).value,topic:$('#qTopic',m).value.trim(),content:$('#qC',m).value,explain:$('#qE',m).value,figure:$('#qFig',m).value.trim(),params:$('#qPar',m).value.trim(),cond:$('#qCond',m).value.trim(),shared:$('#qShared',m).checked,bankId:$('#qBank',m).value||undefined,updatedAt:Date.now()};
       if(t==='mcq'){ o.options=$$('.qO',m).map(i=>i.value); const r=$('input[name=qAns]:checked',m); o.answer=r?+r.value:-1; delete o.statements; }
       else if(t==='tf'){ o.statements=$$('.qSt',m).map(i=>i.value); o.answer=$$('.qSa',m).map(s=>s.value==='1'); delete o.options; }
       else { o.answer=$('#qA',m).value.trim(); delete o.options; delete o.statements; if(t==='essay') o.points=parseFloat($('#qP',m).value)||1; }
@@ -200,7 +223,7 @@ function importTextModal(onDone,{asExam=false}={}){
 }
 Router.add('bank',el=>{
   const S=BankState; let all=visibleQuestions();
-  const filt=()=>all.filter(q=>(!S.subject||q.subject===S.subject)&&(!S.grade||+q.grade===+S.grade)&&(!S.topic||q.topic===S.topic)&&(!S.type||q.type===S.type)&&(!S.level||q.level===S.level)&&(!S.mine||q.ownerId===me().id)&&(!S.q||slug(q.content+' '+q.topic).includes(slug(S.q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const filt=()=>all.filter(q=>(!S.subject||q.subject===S.subject)&&(!S.grade||+q.grade===+S.grade)&&(!S.topic||q.topic===S.topic)&&(!S.type||q.type===S.type)&&(!S.level||q.level===S.level)&&(!S.mine||q.ownerId===me().id)&&(!S.bank||(S.bank==='_sample'?!q.bankId:q.bankId===S.bank))&&(!S.q||slug(q.content+' '+q.topic).includes(slug(S.q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const draw=()=>{ all=visibleQuestions(); const list=filt(), per=15, pages=Math.max(1,Math.ceil(list.length/per)); S.page=Math.min(S.page,pages); const slice=list.slice((S.page-1)*per,S.page*per);
     const byT=groupBy(list,q=>q.type), byL=groupBy(list,q=>q.level);
     $('#bkStat',el).innerHTML=`<span class="badge">${list.length} câu</span> ${QTYPES.map(t=>`<span class="badge gray">${t.t}: ${(byT[t.v]||[]).length}</span>`).join(' ')} ${LEVELS.map(l=>`<span class="badge lv-${l.v}">${l.v}: ${(byL[l.v]||[]).length}</span>`).join(' ')} <span class="badge warn">🎲 ${list.filter(Param.has).length} câu tham số</span>`;
@@ -209,18 +232,23 @@ Router.add('bank',el=>{
     renderMath($('#bkList',el)); };
   const topicOpts=()=>S.subject&&S.grade?topicsOf(S.subject,S.grade):[...new Set(all.filter(q=>(!S.subject||q.subject===S.subject)).map(q=>q.topic))].filter(Boolean);
   el.innerHTML=head('Ngân hàng câu hỏi','Ngân hàng riêng từng môn theo cấu trúc 2025 · hỗ trợ câu hỏi tham số sinh “số tương tự”',
-    `<button class="btn" data-act="tplx">⬇ Mẫu Excel</button><button class="btn" data-act="impx">📥 Nhập Excel</button><button class="btn" data-act="impt">📝 Nhập văn bản</button><button class="btn" data-act="expx">⬆ Xuất Excel</button><button class="btn" data-act="norm" title="Chuẩn hoá các câu đang lọc">🧹 Chuẩn hoá</button><button class="btn pri" data-act="new">➕ Thêm câu hỏi</button>`)+
-  `<div class="card" style="margin-bottom:14px"><div class="grid" style="grid-template-columns:repeat(6,1fr) 2fr;gap:10px">
+    `<button class="btn" data-act="banks">📁 Bộ ngân hàng</button><button class="btn" data-act="genx">🏭 Xưởng sinh câu</button><a class="btn" href="#/import">📄 Nhập Word / PDF / Ảnh</a><button class="btn" data-act="tplx">⬇ Mẫu Excel</button><button class="btn" data-act="impx">📥 Nhập Excel</button><button class="btn" data-act="impt">📝 Nhập văn bản</button><button class="btn" data-act="expx">⬆ Xuất Excel</button><button class="btn" data-act="norm" title="Chuẩn hoá các câu đang lọc">🧹 Chuẩn hoá</button><button class="btn pri" data-act="new">➕ Thêm câu hỏi</button>`)+
+  `<div class="card" style="margin-bottom:14px"><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px"><select id="fB" style="grid-column:span 2">${bankOptions(S.bank,true)}</select><button class="btn" data-act="copyto" title="Sao chép các câu đang lọc sang một bộ ngân hàng của bạn">⧉ Sao chép các câu đang lọc vào bộ…</button><button class="btn" data-act="moveto" title="Chuyển câu của bạn (đang lọc) sang bộ khác">➜ Chuyển câu của tôi sang bộ…</button></div><div class="grid" style="grid-template-columns:repeat(6,1fr) 2fr;gap:10px">
     <select id="fS">${opts(subjList(),S.subject,'— Môn —')}</select><select id="fG">${opts(GRADES.map(g=>({v:g,t:'Lớp '+g})),S.grade,'— Lớp —')}</select>
     <select id="fTopic">${opts(topicOpts(),S.topic,'— Chủ đề —')}</select><select id="fT">${opts(QTYPES,S.type,'— Loại —')}</select><select id="fL">${opts(LEVELS,S.level,'— Mức độ —')}</select>
     <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="fMine" class="chk" ${S.mine?'checked':''}> Của tôi</label>
     <input type="search" id="fQ" value="${esc(S.q)}" placeholder="🔍 Tìm theo nội dung..."></div><div id="bkStat" style="margin-top:10px" class="pill-list"></div></div>
   <div id="bkList"></div><div id="bkPage" class="row" style="justify-content:center;margin-top:10px"></div>`;
   const bindF=(id,k,re)=>{ $(id,el).addEventListener(id==='#fQ'?'input':'change',e=>{ S[k]=e.target.type==='checkbox'?e.target.checked:e.target.value; S.page=1; if(re){ S.topic=''; $('#fTopic',el).innerHTML=opts(topicOpts(),'','— Chủ đề —'); } draw(); }); };
-  bindF('#fS','subject',1); bindF('#fG','grade',1); bindF('#fTopic','topic'); bindF('#fT','type'); bindF('#fL','level'); bindF('#fQ','q'); bindF('#fMine','mine');
+  bindF('#fS','subject',1); bindF('#fG','grade',1); bindF('#fTopic','topic'); bindF('#fT','type'); bindF('#fL','level'); bindF('#fQ','q'); bindF('#fMine','mine'); bindF('#fB','bank');
   on(el,'click','[data-page]',b=>{ S.page=+b.dataset.page; draw(); window.scrollTo(0,0); });
   on(el,'click','[data-act]',b=>{ const a=b.dataset.act, q=b.dataset.id&&DB.get('questions',b.dataset.id);
     if(a==='new') questionEditor(null,draw); if(a==='edit') questionEditor(q,draw);
+    if(a==='banks') banksModal(()=>{ $('#fB',el).innerHTML=bankOptions(S.bank,true); draw(); });
+    if(a==='genx') generatorModal(draw);
+    if(a==='copyto'||a==='moveto'){ const list=filt().filter(q=>a==='copyto'||q.ownerId===me().id||isAdmin()); if(!list.length) return toast('Không có câu phù hợp','bad'); if(!myBanks().length) return toast('Hãy tạo một bộ ngân hàng trước (nút 📁 Bộ ngân hàng)','bad');
+      modal({title:(a==='copyto'?'⧉ Sao chép ':'➜ Chuyển ')+list.length+' câu',body:`<div class="field"><label>Đến bộ ngân hàng</label><select id="ctB">${myBanks().map(b=>`<option value="${b.id}">${b.share==='school'?'🌐':'🔒'} ${esc(b.name)}</option>`).join('')}</select></div>`,foot:`<button class="btn" data-x>Huỷ</button><button class="btn pri" id="ctGo">Thực hiện</button>`,
+        onOpen:(m,close)=>{ $('#ctGo',m).onclick=()=>{ const bid=$('#ctB',m).value; list.forEach(q=>{ if(a==='copyto') DB.data.questions.push({...JSON.parse(JSON.stringify(q)),id:uid('q'),bankId:bid,ownerId:me().id,createdAt:Date.now()}); else q.bankId=bid; }); DB.save(); Sync.markDirty('questions'); close(); toast('Đã xong','ok'); draw(); }; }}); }
     if(a==='dup'){ const c={...JSON.parse(JSON.stringify(q)),id:uid('q'),ownerId:me().id,createdAt:Date.now()}; DB.upsert('questions',c); toast('Đã nhân bản','ok'); draw(); }
     if(a==='del') confirmBox('Xoá câu hỏi này khỏi ngân hàng? (Các đề đã dùng câu này sẽ mất câu.)',()=>{ DB.remove('questions',q.id); draw(); });
     if(a==='gen') modal({title:'🎲 Sinh câu hỏi số tương tự',size:'lg',body:`<div class="row"><label style="margin:0">Số câu cần sinh</label><input type="number" id="gN" value="5" min="1" max="50" style="width:90px"><button class="btn" id="gPrev">Xem trước</button></div><div id="gOut" style="margin-top:12px"></div>`,
@@ -257,4 +285,19 @@ function normalizeModal(list){
   modal({title:'🧹 Chuẩn hoá câu hỏi',size:'lg',body:`<div class="note info">Chuẩn hoá: bỏ khoảng trắng thừa, bỏ tiền tố “Câu n:”, bỏ nhãn “A.”, “B.” lặp trong phương án, bỏ dấu chấm cuối phương án, đổi dấu thập phân sang dấu phẩy theo chuẩn Việt Nam (trong công thức dùng {,}), chuẩn hoá đáp án trả lời ngắn, mức độ, chủ đề.</div>
     <p>Trong <b>${list.length}</b> câu đang lọc có <b>${changed.length}</b> câu cần chuẩn hoá.</p>${changed.slice(0,8).map(x=>`<div class="grid g2" style="gap:8px;margin-bottom:8px"><div>${qCard(x.q,{showAnswer:false})}</div><div>${qCard(x.n,{showAnswer:false})}</div></div>`).join('')}${changed.length>8?`<p class="muted">… và ${changed.length-8} câu khác</p>`:''}`,
     foot:`<button class="btn" data-x>Huỷ</button><button class="btn pri" id="nmGo" ${changed.length?'':'disabled'}>Áp dụng cho ${changed.length} câu</button>`,onOpen:(m,close)=>{ $('#nmGo',m).onclick=()=>{ changed.forEach(x=>{ const i=DB.data.questions.findIndex(q=>q.id===x.q.id); if(i>=0) DB.data.questions[i]={...x.n,updatedAt:Date.now()}; }); DB.save(); Sync.markDirty('questions'); close(); toast(`Đã chuẩn hoá ${changed.length} câu`,'ok'); App.render(); }; }});
+}
+
+/* ===================== ĐẶT LẠI MẬT KHẨU (đẩy lên máy chủ ngay) ===================== */
+function setPwModal(users,label){
+  modal({title:'🔑 Đặt lại mật khẩu – '+esc(label),body:`<div class="field"><label>Mật khẩu mới</label><input type="text" id="spPw" value="123456" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+    ${users.length>1?'<label style="display:flex;gap:6px;align-items:center;font-weight:500"><input type="checkbox" class="chk" id="spRand"> Mỗi học sinh một mật khẩu ngẫu nhiên (bỏ qua ô trên)</label>':''}
+    <div id="spMsg" class="note info" style="margin-top:10px">${Sync.on?(DB.data.settings.writeKey?'Mật khẩu mới sẽ được đẩy lên máy chủ ngay sau khi lưu.':'⚠ Chưa nhập <b>Khoá ghi</b> (Cài đặt) nên mật khẩu mới <b>chưa lên được máy chủ</b> – học sinh sẽ vẫn bị báo sai. Nhập Khoá ghi trước.'):'Chế độ cục bộ: mật khẩu chỉ có hiệu lực trên máy này.'}</div>`,
+    foot:`<button class="btn" data-x>Huỷ</button><button class="btn pri" id="spGo">Lưu mật khẩu</button>`,onOpen:(m,close)=>{ $('#spGo',m).onclick=async()=>{
+      const rnd=$('#spRand',m)&&$('#spRand',m).checked; const pw=$('#spPw',m).value.trim(); if(!rnd&&pw.length<4) return toast('Mật khẩu tối thiểu 4 ký tự','bad');
+      const now=Date.now(); users.forEach(u=>{ u.initPw=rnd?randPw():pw; u.pw=hashPw(u.initPw); u.pwAt=now; delete u.locked; }); DB.save();
+      if(Sync.on&&DB.data.settings.writeKey){ $('#spGo',m).disabled=true; $('#spMsg',m).textContent='Đang đẩy lên máy chủ…';
+        try{ await Sync.push(); close(); toast(users.length>1?`Đã đặt lại mật khẩu ${users.length} học sinh và lưu lên máy chủ`:`Mật khẩu mới của ${users[0].name}: ${users[0].initPw} – đã lưu lên máy chủ`,'ok'); }
+        catch(e){ $('#spGo',m).disabled=false; $('#spMsg',m).className='note'; $('#spMsg',m).textContent='❌ Chưa lưu được lên máy chủ: '+e.message+'. Kiểm tra mạng và Khoá ghi rồi bấm lại.'; return; } }
+      else { Sync.markDirty('users'); close(); toast(users.length>1?'Đã đặt lại mật khẩu':`Mật khẩu mới của ${users[0].name}: ${users[0].initPw}`,'ok'); }
+      App.render(); }; }});
 }

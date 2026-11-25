@@ -26,7 +26,7 @@ const randPw = () => String(Math.floor(100000+Math.random()*900000));
 
 /* ---------------- Lưu trữ ---------------- */
 const KEY='lmslkt_db_v1';
-const COLS=['users','classes','questions','exams','matrices','lessons','assignments','submissions','progress','announcements','topics','theory'];
+const COLS=['users','classes','questions','exams','matrices','lessons','assignments','submissions','progress','announcements','topics','theory','banks'];
 const DB = {
   data:null,
   load(){
@@ -77,7 +77,7 @@ const Sync = {
     if(method==='GET'){ const q=new URLSearchParams({action,...payload}); const r=await fetch(this.url+'?'+q); return r.json(); }
     const r = await fetch(this.url,{method:'POST',body:JSON.stringify({action,...payload})}); return r.json();
   },
-  coreData(){ const d={}; ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory'].forEach(c=>d[c]=DB.data[c]);
+  coreData(){ const d={}; ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory','banks'].forEach(c=>d[c]=DB.data[c]);
     d.settings={schoolName:DB.data.settings.schoolName,header:DB.data.settings.header}; return d; },
   async push(){ if(this.busy) return; this.busy=true; setSyncDot('…');
     try{ const r=await this.call('saveDb',{key:DB.data.settings.writeKey, db:JSON.stringify(this.coreData())}); if(!r.ok) throw new Error(r.error||'Lỗi lưu'); this.dirty=false; setSyncDot(true); return r; }
@@ -86,7 +86,7 @@ const Sync = {
     const r = await this.call('getDb',{key:withSubs?(DB.data.settings.writeKey||''):'',sid:Auth.user?Auth.user.id:''},'GET');
     if(!r.ok) throw new Error(r.error||'Lỗi tải');
     if(r.db){ const d=JSON.parse(r.db);
-      if(Array.isArray(d.users)) d.users.forEach(u=>{ const o=DB.get('users',u.id); if(!u.pw&&o&&o.pw) u.pw=o.pw; if(!u.initPw&&o&&o.initPw&&o.pw===u.pw) u.initPw=o.initPw; if(o&&o.lastLogin&&!u.lastLogin) u.lastLogin=o.lastLogin; }); ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory'].forEach(c=>{ if(Array.isArray(d[c])) DB.data[c]=d[c]; });
+      if(Array.isArray(d.users)) d.users.forEach(u=>{ const o=DB.get('users',u.id); if(!u.pw&&o&&o.pw) u.pw=o.pw; if(!u.initPw&&o&&o.initPw&&o.pw===u.pw) u.initPw=o.initPw; if(o&&o.lastLogin&&!u.lastLogin) u.lastLogin=o.lastLogin; }); ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory','banks'].forEach(c=>{ if(Array.isArray(d[c])) DB.data[c]=d[c]; });
       if(d.settings&&d.settings.schoolName) DB.data.settings.schoolName=d.settings.schoolName; if(d.settings&&d.settings.header) DB.data.settings.header=d.settings.header; }
     const merge=(col,arr,key)=>{ if(!Array.isArray(arr)) return; const m=new Map(DB.data[col].map(x=>[key(x),x])); arr.forEach(x=>{ const o=m.get(key(x)); if(!o || (x.updatedAt||0)>=(o.updatedAt||0)) m.set(key(x),x); }); DB.data[col]=[...m.values()]; };
     merge('submissions', r.subs, x=>x.id); merge('progress', r.progress, x=>x.studentId+'|'+x.lessonId);
@@ -127,9 +127,11 @@ function readText(file){ return new Promise((res,rej)=>{ const fr=new FileReader
 function pickFile(accept,cb){ const i=document.createElement('input'); i.type='file'; i.accept=accept; i.onchange=()=>i.files[0]&&cb(i.files[0]); i.click(); }
 /* Xuất Word (.doc HTML) – giữ LaTeX dạng $...$ để chuyển MathType bằng add-in */
 /* Xuất Word .docx: xem docx.js – công thức biên dịch sang Equation của Word, hình nhúng PNG */
-function svgToPng(svg,k=2){ return new Promise(res=>{ const m=svg.match(/width="([\d.]+)"\s+height="([\d.]+)"/); const w=m?+m[1]:300,h=m?+m[2]:200; const img=new Image();
-  img.onload=()=>{ try{ const c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height); res({data:c.toDataURL('image/png').split(',')[1],w,h}); }catch(e){ res(null); } };
-  img.onerror=()=>res(null); let s=svg; if(!/xmlns=/.test(s)) s=s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"'); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); }); }
+function svgToPng(svg,k=2){ return new Promise(res=>{ const img=new Image(); let w=0,h=0,src;
+  if(/^\s*<img/i.test(svg)||/^data:image/.test(svg)){ src=/^data:/.test(svg)?svg:(svg.match(/src="([^"]+)"/)||[])[1]; k=1; if(!src) return res(null); }
+  else { const m=svg.match(/width="([\d.]+)"\s+height="([\d.]+)"/); w=m?+m[1]:300; h=m?+m[2]:200; let s=svg; if(!/xmlns=/.test(s)) s=s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"'); src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); }
+  img.onload=()=>{ try{ w=w||img.naturalWidth; h=h||img.naturalHeight; const c=document.createElement('canvas'); c.width=Math.round(w*k); c.height=Math.round(h*k); const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height); res({data:c.toDataURL('image/png').split(',')[1],w,h}); }catch(e){ res(null); } };
+  img.onerror=()=>res(null); img.src=src; }); }
 const b64utf8=s=>{ const u=new TextEncoder().encode(s); let bin=''; for(let i=0;i<u.length;i+=32768) bin+=String.fromCharCode.apply(null,u.subarray(i,i+32768)); return btoa(bin); };
 const wrap76=s=>s.replace(/(.{76})/g,'$1\r\n');
 async function exportWord(name,title,html,{size=12,font='Times New Roman',footer=''}={}){

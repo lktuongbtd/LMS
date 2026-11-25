@@ -13,9 +13,23 @@
  */
 const WRITE_KEY = 'doi-khoa-nay-ngay'; // ← ĐỔI THÀNH CHUỖI BÍ MẬT
 const CHUNK = 45000;
+const VERSION = '2.2';
 
+/* Lấy bảng tính chứa dữ liệu: dùng được cả khi script gắn với Google Sheet lẫn script tạo riêng ở script.google.com
+   (khi tạo riêng, lần đầu sẽ tự tạo file Google Sheet "LMS LKT – Dữ liệu" trong Drive và ghi nhớ) */
+function ss_() {
+  let ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
+  if (ss) return ss;
+  const pr = PropertiesService.getScriptProperties();
+  const id = pr.getProperty('SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) {} }
+  ss = SpreadsheetApp.create('LMS LKT – Dữ liệu');
+  pr.setProperty('SHEET_ID', ss.getId());
+  return ss;
+}
 function sh_(name, header) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = ss_();
   let s = ss.getSheetByName(name);
   if (!s) { s = ss.insertSheet(name); if (header) s.appendRow(header); }
   return s;
@@ -55,11 +69,22 @@ function upsert_(name, header, keyCol, key, row) {
   s.appendRow(row);
 }
 
+/* ---------- CHẠY THỬ: chọn hàm "kiemTra" rồi bấm Run (lần đầu sẽ hỏi cấp quyền) ---------- */
+function kiemTra() {
+  sh_('db'); sh_('subs', ['id', 'studentId', 'assignmentId', 'json', 'updatedAt']); sh_('progress', ['key', 'studentId', 'json']); sh_('pw', ['uid', 'hash', 'at']);
+  const db = loadDb_();
+  Logger.log('✅ Máy chủ LMS LKT hoạt động. Dữ liệu chung: ' + (db ? (db.length + ' ký tự') : 'CHƯA CÓ – vào LMS > Cài đặt > Đẩy lên máy chủ'));
+  Logger.log('📄 File dữ liệu: ' + ss_().getUrl());
+  let url = ''; try { url = ScriptApp.getService().getUrl(); } catch (e) {}
+  Logger.log('🔗 URL Web App (dán vào LMS > Cài đặt): ' + (url || 'CHƯA TRIỂN KHAI – bấm Triển khai > Tùy chọn triển khai mới > Ứng dụng web'));
+  Logger.log('🔑 Khoá ghi (nhập vào LMS > Cài đặt): ' + WRITE_KEY);
+}
+
 /* ---------- GET ---------- */
 function doGet(e) {
-  const p = e.parameter || {};
+  const p = (e && e.parameter) || { action: 'ping' }; // bấm Run trong trình soạn thảo cũng không lỗi
   try {
-    if (p.action === 'ping') return out_({ ok: true, app: 'LMS LKT', time: new Date().toISOString() });
+    if (p.action === 'ping') { const raw = loadDb_(); return out_({ ok: true, app: 'LMS LKT', version: VERSION, time: new Date().toISOString(), hasDb: !!raw, size: raw ? raw.length : 0 }); }
     if (p.action === 'getDb') {
       const full = p.key && p.key === WRITE_KEY;
       const db = dbWithPw_();
@@ -76,9 +101,11 @@ function doGet(e) {
 
 /* ---------- POST ---------- */
 function doPost(e) {
+  if (!e || !e.postData) return out_({ ok: false, error: 'Hàm doPost chỉ chạy khi LMS gửi dữ liệu – để kiểm tra hãy chạy hàm kiemTra' });
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const b = JSON.parse(e.postData.contents || '{}');
+    if (b.action === 'checkKey') return out_({ ok: b.key === WRITE_KEY, error: b.key === WRITE_KEY ? '' : 'Sai khoá ghi' });
     if (b.action === 'saveDb') {
       if (b.key !== WRITE_KEY) return out_({ ok: false, error: 'Sai khoá ghi' });
       const incoming = JSON.parse(b.db); const old = dbWithPw_();
