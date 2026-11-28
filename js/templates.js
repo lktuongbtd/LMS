@@ -72,13 +72,16 @@ function generatorModal(onDone){
  * Chạy khi mở app và sau mỗi lần tải dữ liệu từ máy chủ: nếu ngân hàng chưa có bộ câu mẫu
  * phiên bản mới thì bổ sung (không trùng, không xoá câu của giáo viên). */
 const SeedSync = {
-  VER: 4, PER: 3,
-  ensure(d){ d.settings=d.settings||{}; if((d.settings.seedDone||0)>=this.VER) return 0;
+  VER: 5, PER: 3,
+  ensure(d,force){ d.settings=d.settings||{}; const first=(d.settings.seedDone||0)<this.VER; if(!force&&!first) return 0;
     const have=new Set(d.questions.map(q=>q.seedKey).filter(Boolean)); let n=0; const now=Date.now();
-    if(typeof SEED3!=='undefined') SEED3.build().forEach(q=>{ if(!have.has(q.seedKey)){ q.id='q_'+q.seedKey; d.questions.push(q); have.add(q.seedKey); n++; } });
-    if(typeof SEED2!=='undefined') SEED2.build().forEach(q=>{ if(!have.has(q.seedKey)){ q.id='q_'+q.seedKey; d.questions.push(q); have.add(q.seedKey); n++; } });
-    TEMPLATES.forEach(t=>{ const need=[]; for(let i=0;i<this.PER;i++) if(!have.has(`t3-${t.id}-${i}`)) need.push(i); if(!need.length) return;
-      let cs=[]; try{ cs=Param.clones(t,this.PER); }catch(e){}
-      need.forEach((i,j)=>{ const c=cs[j]; if(!c) return; delete c.tpl; c.seedKey=`t3-${t.id}-${i}`; c.id='q_'+c.seedKey; c.parentId=t.id; c.shared=true; c.ownerId='u_admin'; c.createdAt=now; d.questions.push(c); have.add(c.seedKey); n++; }); });
+    const norm=q=>String((q.content||'')+'¦'+JSON.stringify(q.options||q.statements||'')).replace(/<[^>]+>|\$|\\[a-z]+|[{}\s.,:;!?()"'\[\]¦]/gi,'').toLowerCase();
+    const seen=new Set(d.questions.map(q=>q.type+'|'+norm(q)));
+    const put=q=>{ const k=q.type+'|'+norm(q); if(have.has(q.seedKey)||seen.has(k)) return; q.id=q.id||('q_'+q.seedKey); d.questions.push(q); have.add(q.seedKey); seen.add(k); n++; };
+    if(typeof SEED4!=='undefined') SEED4.build().forEach(put);
+    if(typeof SEED3!=='undefined') SEED3.build().forEach(put);
+    if(typeof SEED2!=='undefined') SEED2.build().forEach(put);
+    if(first) TEMPLATES.forEach(t=>{ let cs=[]; try{ cs=Param.clones(t,this.PER); }catch(e){}
+      cs.forEach((c,i)=>{ if(have.has(`t3-${t.id}-${i}`)) return; delete c.tpl; c.seedKey=`t3-${t.id}-${i}`; c.id='q_'+c.seedKey; c.parentId=t.id; c.shared=true; c.ownerId='u_admin'; c.createdAt=now; put(c); }); });
     d.seedVersion=Math.max(d.seedVersion||0,SEED_VERSION); d.settings.seedDone=this.VER; return n; }
 };

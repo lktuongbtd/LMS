@@ -369,7 +369,7 @@ Router.add('settings',el=>{
    <div class="card" style="grid-column:1/-1"><h3>📝 Mẫu tiêu đề đề thi (mặc định cho mọi đề)</h3>${headerFieldsHtml(Exam.header({}),'sh')}<div class="row" style="margin-top:8px"><button class="btn pri" data-act="saveHdr">Lưu mẫu tiêu đề</button><button class="btn" data-act="pvHdr">Xem trước</button></div><div id="shPrev" class="paper" style="margin-top:10px;display:none"></div></div>
    <div class="card"><h3>💾 Sao lưu & khôi phục</h3><p class="muted">Dữ liệu đang lưu trong trình duyệt này (${size} KB). Nên sao lưu định kỳ.</p>
      <div class="row"><button class="btn pri" data-act="backup">⬇ Sao lưu (.json)</button><button class="btn" data-act="restore">⬆ Khôi phục</button>${isAdmin()?'<button class="btn bad" data-act="reset">Xoá & nạp lại dữ liệu mẫu</button>':''}</div></div>
-   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 3.0 · ${new Date().getFullYear()}</p></div>
+   <div class="card"><h3>ℹ️ Giới thiệu</h3><p><b>${CFG.appName}</b> – Hệ thống quản lý học tập cho trường THPT: ngân hàng câu hỏi 11 môn theo cấu trúc 2025, ma trận – đặc tả, trộn đề, thi online, bảng điểm, tiến độ.</p><p>Tác giả: <b>${CFG.author}</b> · ${CFG.contact}</p><p class="muted">Phiên bản 3.1 · ${new Date().getFullYear()}</p></div>
   </div>`;
   bindPwForm(el);
   const msg=(t,ok)=>{ $('#stMsg',el).innerHTML=`<div class="note ${ok?'info':''}">${t}</div>`; };

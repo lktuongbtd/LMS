@@ -203,3 +203,7 @@ Dữ liệu (lớp, tài khoản, ngân hàng, đề, bài nộp) **không nằm
 - **Form đề khi xuất**: Chuẩn Bộ GD / Hiện đại có màu / Kiểu LaTeX; chọn màu nhãn “Câu”, màu chữ cái A B C D (tím, xanh, đỏ…), màu nhấn; phông Times New Roman, kiểu LaTeX (Libertinus Serif, STIX Two – có đủ dấu tiếng Việt), Cambria, Palatino.
 - **Xuất kèm**: đề từng mã, bảng đáp án từng mã, bảng đáp án tổng hợp các mã, hướng dẫn giải chi tiết, ma trận, đặc tả; có thể tách mỗi phần một file Word.
 - **Đề cương ôn tập**: Ngân hàng → 📘 Xuất đề cương → chọn chương/bài → tóm tắt lí thuyết + bài tập theo bài + đáp án/lời giải → Word hoặc In/PDF.
+
+### Bản 3.1 – Bộ câu hỏi thực tiễn & nút “📥 Nạp bộ câu mới”
+- `js/bank4.js`: 206 câu mới (Toán 88 câu, phần lớn là câu tham số; 10 môn còn lại 118 câu), đủ 4 loại và 4 mức (NB–TH–VD–VDC), trọng tâm bài toán thực tiễn, tình huống pháp luật, đời sống, môi trường.
+- Ngân hàng → **📥 Nạp bộ câu mới**: nạp các bộ câu mẫu còn thiếu, tự bỏ qua câu trùng nội dung, rồi đẩy lên máy chủ. Lần đầu admin đăng nhập bản mới, hệ thống cũng tự nạp.
