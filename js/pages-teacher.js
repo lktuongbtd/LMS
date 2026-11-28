@@ -148,7 +148,7 @@ Router.add('teachers',el=>{
 /* ===================== NGÂN HÀNG CÂU HỎI ===================== */
 const BankState={subject:'',grade:'',topic:'',type:'',level:'',q:'',page:1,mine:false,bank:''};
 function questionEditor(q,onSaved){
-  const isNew=!q; q=q?JSON.parse(JSON.stringify(q)):{id:uid('q'),subject:BankState.subject||((me().subjects||[])[0])||'toan',grade:+BankState.grade||12,topic:BankState.topic||'',level:'NB',type:'mcq',content:'',options:['','','',''],answer:0,statements:['','','',''],explain:'',params:'',cond:'',shared:true};
+  const isNew=!q; q=q?JSON.parse(JSON.stringify(q)):{id:uid('q'),subject:BankState.subject||((me().subjects||[])[0])||'toan',grade:+BankState.grade||12,topic:BankState.topic||'',lesson:BankState.lesson&&BankState.lesson!=='_none'?BankState.lesson:'',level:'NB',type:'mcq',content:'',options:['','','',''],answer:0,statements:['','','',''],explain:'',params:'',cond:'',shared:true};
   if(!q.options) q.options=['','','','']; if(!q.statements) q.statements=['','','',''];
   const tfAns=Array.isArray(q.answer)?q.answer:[true,true,true,true];
   modal({title:isNew?'Thêm câu hỏi':'Sửa câu hỏi',size:'xl',body:`
@@ -156,7 +156,7 @@ function questionEditor(q,onSaved){
    <div>
     <div class="grid g4"><div class="field"><label>Môn</label><select id="qS">${opts(subjList(),q.subject)}</select></div><div class="field"><label>Lớp</label><select id="qG">${opts(GRADES,q.grade)}</select></div>
       <div class="field"><label>Loại</label><select id="qT">${opts(QTYPES,q.type)}</select></div><div class="field"><label>Mức độ</label><select id="qL">${opts(LEVELS,q.level)}</select></div></div>
-    <div class="field"><label>Chủ đề / bài</label><input type="text" id="qTopic" list="qTopicList" value="${esc(q.topic)}"><datalist id="qTopicList"></datalist></div>
+    <div class="grid g2"><div class="field"><label>Chương / chủ đề</label><input type="text" id="qTopic" list="qTopicList" value="${esc(q.topic)}" placeholder="Chọn hoặc gõ tên chương"><datalist id="qTopicList"></datalist></div><div class="field"><label>Bài / đơn vị kiến thức</label><input type="text" id="qLesson" list="qLessonList" value="${esc(q.lesson||'')}" placeholder="Chọn bài"><datalist id="qLessonList"></datalist></div></div>
     <div class="field"><label>Nội dung câu hỏi <small class="muted">(công thức trong $...$, HTML cơ bản được phép)</small></label><textarea id="qC" style="min-height:110px">${esc(q.content)}</textarea></div>
     <div id="qMcq">${[0,1,2,3].map(i=>`<div class="row" style="margin-bottom:6px"><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="radio" name="qAns" value="${i}" ${q.type==='mcq'&&+q.answer===i?'checked':''} class="chk"> ${LETTER[i]}</label><input type="text" class="grow qO" data-i="${i}" value="${esc(q.options[i])}"></div>`).join('')}<small class="muted">Chọn nút tròn ở phương án đúng.</small></div>
     <div id="qTf">${[0,1,2,3].map(i=>`<div class="row" style="margin-bottom:6px"><b>${'abcd'[i]})</b><input type="text" class="grow qSt" data-i="${i}" value="${esc(q.statements[i])}"><select class="qSa" data-i="${i}" style="width:90px"><option value="1" ${tfAns[i]?'selected':''}>Đúng</option><option value="0" ${!tfAns[i]?'selected':''}>Sai</option></select></div>`).join('')}</div>
@@ -178,14 +178,14 @@ function questionEditor(q,onSaved){
   foot:`<button class="btn" data-x>Huỷ</button>${isNew?'<button class="btn" id="qSaveNew">Lưu & thêm câu khác</button>':''}<button class="btn pri" id="qSave">Lưu câu hỏi</button>`,
   onOpen:(m,close)=>{
     let seed='p0';
-    const read=()=>{ const t=$('#qT',m).value; const o={...q,subject:$('#qS',m).value,grade:+$('#qG',m).value,type:t,level:$('#qL',m).value,topic:$('#qTopic',m).value.trim(),content:$('#qC',m).value,explain:$('#qE',m).value,figure:$('#qFig',m).value.trim(),params:$('#qPar',m).value.trim(),cond:$('#qCond',m).value.trim(),shared:$('#qShared',m).checked,bankId:$('#qBank',m).value||undefined,updatedAt:Date.now()};
+    const read=()=>{ const t=$('#qT',m).value; const o={...q,subject:$('#qS',m).value,grade:+$('#qG',m).value,type:t,level:$('#qL',m).value,topic:$('#qTopic',m).value.trim(),lesson:$('#qLesson',m).value.trim(),content:$('#qC',m).value,explain:$('#qE',m).value,figure:$('#qFig',m).value.trim(),params:$('#qPar',m).value.trim(),cond:$('#qCond',m).value.trim(),shared:$('#qShared',m).checked,bankId:$('#qBank',m).value||undefined,updatedAt:Date.now()};
       if(t==='mcq'){ o.options=$$('.qO',m).map(i=>i.value); const r=$('input[name=qAns]:checked',m); o.answer=r?+r.value:-1; delete o.statements; }
       else if(t==='tf'){ o.statements=$$('.qSt',m).map(i=>i.value); o.answer=$$('.qSa',m).map(s=>s.value==='1'); delete o.options; }
       else { o.answer=$('#qA',m).value.trim(); delete o.options; delete o.statements; if(t==='essay') o.points=parseFloat($('#qP',m).value)||1; }
       return o; };
     const show=()=>{ const t=$('#qT',m).value; $('#qMcq',m).classList.toggle('hide',t!=='mcq'); $('#qTf',m).classList.toggle('hide',t!=='tf'); $('#qShort',m).classList.toggle('hide',!(t==='short'||t==='essay')); $('#qPts',m).classList.toggle('hide',t!=='essay');
       $('#qAnsLbl',m).textContent=t==='essay'?'Hướng dẫn chấm / đáp án':'Đáp án (số hoặc chuỗi ngắn; dùng dấu phẩy thập phân được)';
-      $('#qTopicList',m).innerHTML=topicsOf($('#qS',m).value,$('#qG',m).value).map(x=>`<option value="${esc(x)}">`).join('');
+      $('#qTopicList',m).innerHTML=topicsOf($('#qS',m).value,$('#qG',m).value).map(x=>`<option value="${esc(x)}">`).join(''); $('#qLessonList',m).innerHTML=lessonsOf($('#qS',m).value,$('#qG',m).value,$('#qTopic',m).value.trim()).map(x=>`<option value="${esc(x)}">`).join('');
       try{ const o=read(); $('#qPrev',m).innerHTML=qCard(Param.instantiate(o,seed),{}); renderMath($('#qPrev',m)); }catch(e){ $('#qPrev',m).innerHTML='<div class="note">'+esc(e.message)+'</div>'; } };
     let tm; m.addEventListener('input',()=>{ clearTimeout(tm); tm=setTimeout(show,300); }); m.addEventListener('change',show);
     $('#qReroll',m).onclick=()=>{ seed='p'+Math.random(); show(); };
@@ -195,7 +195,7 @@ function questionEditor(q,onSaved){
       if(o.type==='tf'&&o.statements.some(x=>!x.trim())) return toast('Nhập đủ 4 ý a, b, c, d','bad'); if(o.type==='short'&&!o.answer) return toast('Nhập đáp án','bad');
       if(o.params){ if(!Param.parse(o.params).length) return toast('Khai báo tham số chưa đúng cú pháp','bad'); }
       if(!o.ownerId) o.ownerId=me().id; if(!o.createdAt) o.createdAt=Date.now(); DB.upsert('questions',o); toast('Đã lưu câu hỏi','ok'); close(); onSaved&&onSaved(o);
-      if(again){ BankState.subject=o.subject; BankState.grade=o.grade; BankState.topic=o.topic; questionEditor(null,onSaved);} };
+      if(again){ BankState.subject=o.subject; BankState.grade=o.grade; BankState.topic=o.topic; BankState.lesson=o.lesson; questionEditor(null,onSaved);} };
     $('#qSave',m).onclick=()=>save(false); const sn=$('#qSaveNew',m); if(sn) sn.onclick=()=>save(true);
     show();
   }});
@@ -223,29 +223,42 @@ function importTextModal(onDone,{asExam=false}={}){
 }
 Router.add('bank',el=>{
   const S=BankState; let all=visibleQuestions();
-  const filt=()=>all.filter(q=>(!S.subject||q.subject===S.subject)&&(!S.grade||+q.grade===+S.grade)&&(!S.topic||q.topic===S.topic)&&(!S.type||q.type===S.type)&&(!S.level||q.level===S.level)&&(!S.mine||q.ownerId===me().id)&&(!S.bank||(S.bank==='_sample'?!q.bankId:q.bankId===S.bank))&&(!S.q||slug(q.content+' '+q.topic).includes(slug(S.q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const filt=()=>all.filter(q=>(!S.subject||q.subject===S.subject)&&(!S.grade||+q.grade===+S.grade)&&(!S.topic||q.topic===S.topic)&&(!S.lesson||(S.lesson==='_none'?!q.lesson:q.lesson===S.lesson))&&(!S.type||q.type===S.type)&&(!S.level||q.level===S.level)&&(!S.mine||q.ownerId===me().id)&&(!S.bank||(S.bank==='_sample'?!q.bankId:q.bankId===S.bank))&&(!S.q||slug(q.content+' '+q.topic).includes(slug(S.q)))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const draw=()=>{ all=visibleQuestions(); const list=filt(), per=15, pages=Math.max(1,Math.ceil(list.length/per)); S.page=Math.min(S.page,pages); const slice=list.slice((S.page-1)*per,S.page*per);
     const byT=groupBy(list,q=>q.type), byL=groupBy(list,q=>q.level);
     $('#bkStat',el).innerHTML=`<span class="badge">${list.length} câu</span> ${QTYPES.map(t=>`<span class="badge gray">${t.t}: ${(byT[t.v]||[]).length}</span>`).join(' ')} ${LEVELS.map(l=>`<span class="badge lv-${l.v}">${l.v}: ${(byL[l.v]||[]).length}</span>`).join(' ')} <span class="badge warn">🎲 ${list.filter(Param.has).length} câu tham số</span>`;
     $('#bkList',el).innerHTML=slice.length?slice.map(q=>qCard(Param.instantiate(q,'view'),{actions:`<button class="btn sm" data-act="edit" data-id="${q.id}">✏️ Sửa</button><button class="btn sm" data-act="dup" data-id="${q.id}">⧉</button>${Param.has(q)?`<button class="btn sm" data-act="gen" data-id="${q.id}">🎲 Sinh số tương tự</button>`:''}${(isAdmin()||q.ownerId===me().id)?`<button class="btn sm bad" data-act="del" data-id="${q.id}">✕</button>`:''}`})).join(''):emptyBox('Không có câu hỏi phù hợp bộ lọc','🔍');
-    $('#bkPage',el).innerHTML=pages>1?Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===S.page?'pri':''}" data-page="${i+1}">${i+1}</button>`).join(''):'';
+    tree(); $('#bkPage',el).innerHTML=pages>1?Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===S.page?'pri':''}" data-page="${i+1}">${i+1}</button>`).join(''):'';
     renderMath($('#bkList',el)); };
   const topicOpts=()=>S.subject&&S.grade?topicsOf(S.subject,S.grade):[...new Set(all.filter(q=>(!S.subject||q.subject===S.subject)).map(q=>q.topic))].filter(Boolean);
   el.innerHTML=head('Ngân hàng câu hỏi','Ngân hàng riêng từng môn theo cấu trúc 2025 · hỗ trợ câu hỏi tham số sinh “số tương tự”',
-    `<button class="btn" data-act="banks">📁 Bộ ngân hàng</button><button class="btn" data-act="genx">🏭 Xưởng sinh câu</button><a class="btn" href="#/import">📄 Nhập Word / PDF / Ảnh</a><button class="btn" data-act="tplx">⬇ Mẫu Excel</button><button class="btn" data-act="impx">📥 Nhập Excel</button><button class="btn" data-act="impt">📝 Nhập văn bản</button><button class="btn" data-act="expx">⬆ Xuất Excel</button><button class="btn" data-act="norm" title="Chuẩn hoá các câu đang lọc">🧹 Chuẩn hoá</button><button class="btn pri" data-act="new">➕ Thêm câu hỏi</button>`)+
-  `<div class="card" style="margin-bottom:14px"><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px"><select id="fB" style="grid-column:span 2">${bankOptions(S.bank,true)}</select><button class="btn" data-act="copyto" title="Sao chép các câu đang lọc sang một bộ ngân hàng của bạn">⧉ Sao chép các câu đang lọc vào bộ…</button><button class="btn" data-act="moveto" title="Chuyển câu của bạn (đang lọc) sang bộ khác">➜ Chuyển câu của tôi sang bộ…</button></div><div class="grid" style="grid-template-columns:repeat(6,1fr) 2fr;gap:10px">
+    `<button class="btn" data-act="banks">📁 Bộ ngân hàng</button><button class="btn" data-act="genx">🏭 Xưởng sinh câu</button><button class="btn" data-act="decuong">📘 Xuất đề cương</button><a class="btn" href="#/import">📄 Nhập Word / PDF / Ảnh</a><button class="btn" data-act="tplx">⬇ Mẫu Excel</button><button class="btn" data-act="impx">📥 Nhập Excel</button><button class="btn" data-act="impt">📝 Nhập văn bản</button><button class="btn" data-act="expx">⬆ Xuất Excel</button><button class="btn" data-act="norm" title="Chuẩn hoá các câu đang lọc">🧹 Chuẩn hoá</button><button class="btn pri" data-act="new">➕ Thêm câu hỏi</button>`)+
+  `<div class="bk-layout"><aside class="card tree" id="bkTree"></aside><div style="min-width:0"><div class="card" style="margin-bottom:14px"><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px"><select id="fB" style="grid-column:span 2">${bankOptions(S.bank,true)}</select><button class="btn" data-act="copyto" title="Sao chép các câu đang lọc sang một bộ ngân hàng của bạn">⧉ Sao chép các câu đang lọc vào bộ…</button><button class="btn" data-act="moveto" title="Chuyển câu của bạn (đang lọc) sang bộ khác">➜ Chuyển câu của tôi sang bộ…</button></div><div class="grid" style="grid-template-columns:repeat(6,1fr) 2fr;gap:10px">
     <select id="fS">${opts(subjList(),S.subject,'— Môn —')}</select><select id="fG">${opts(GRADES.map(g=>({v:g,t:'Lớp '+g})),S.grade,'— Lớp —')}</select>
     <select id="fTopic">${opts(topicOpts(),S.topic,'— Chủ đề —')}</select><select id="fT">${opts(QTYPES,S.type,'— Loại —')}</select><select id="fL">${opts(LEVELS,S.level,'— Mức độ —')}</select>
     <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="fMine" class="chk" ${S.mine?'checked':''}> Của tôi</label>
     <input type="search" id="fQ" value="${esc(S.q)}" placeholder="🔍 Tìm theo nội dung..."></div><div id="bkStat" style="margin-top:10px" class="pill-list"></div></div>
-  <div id="bkList"></div><div id="bkPage" class="row" style="justify-content:center;margin-top:10px"></div>`;
-  const bindF=(id,k,re)=>{ $(id,el).addEventListener(id==='#fQ'?'input':'change',e=>{ S[k]=e.target.type==='checkbox'?e.target.checked:e.target.value; S.page=1; if(re){ S.topic=''; $('#fTopic',el).innerHTML=opts(topicOpts(),'','— Chủ đề —'); } draw(); }); };
-  bindF('#fS','subject',1); bindF('#fG','grade',1); bindF('#fTopic','topic'); bindF('#fT','type'); bindF('#fL','level'); bindF('#fQ','q'); bindF('#fMine','mine'); bindF('#fB','bank');
+  <div id="bkCrumb" class="crumb"></div><div id="bkList"></div><div id="bkPage" class="row" style="justify-content:center;margin-top:10px"></div></div></div>`;
+  const tree=()=>{ const cnt={}; all.forEach(q=>{ const ks=[q.subject,q.subject+'|'+q.grade,q.subject+'|'+q.grade+'|'+q.topic,q.subject+'|'+q.grade+'|'+q.topic+'|'+(q.lesson||'')]; ks.forEach(k=>cnt[k]=(cnt[k]||0)+1); });
+    const em=k=>`<em>${cnt[k]||0}</em>`;
+    $('#bkTree',el).innerHTML=`<div class="tree-h"><b>🌳 Cây chương trình</b><button class="btn sm" data-act="tree" title="Thêm chương / bài">➕</button></div><div class="tr-all ${!S.subject?'on':''}" data-tr="">📚 Tất cả môn ${em2(all.length)}</div>`+subjList().map(sj=>{ const k1=sj.v;
+      return `<details ${S.subject===k1?'open':''}><summary class="${S.subject===k1&&!S.grade?'on':''}" data-tr="${k1}">${(SUBJECTS[k1]||{}).icon||''} ${sj.t}${em(k1)}</summary>`+GRADES.map(g=>{ const k2=k1+'|'+g; const chs=topicsOf(k1,g);
+        return `<details ${S.subject===k1&&+S.grade===g?'open':''}><summary class="${S.subject===k1&&+S.grade===g&&!S.topic?'on':''}" data-tr="${k2}">Lớp ${g}${em(k2)}</summary>`+chs.map((c,ci)=>{ const k3=k2+'|'+c; const ls=lessonsOf(k1,g,c); const none=cnt[k3+'|']||0;
+          return `<details ${S.subject===k1&&+S.grade===g&&S.topic===c?'open':''}><summary class="ch ${S.topic===c&&S.subject===k1&&+S.grade===g&&!S.lesson?'on':''}" data-tr="${k2}|${ci}">${esc(c)}${em(k3)}</summary>${ls.map((b,bi)=>`<div class="tr-b ${S.topic===c&&S.lesson===b?'on':''}" data-tr="${k2}|${ci}|${bi}">${esc(b)}${em(k3+'|'+b)}</div>`).join('')}${none&&ls.length?`<div class="tr-b muted ${S.topic===c&&S.lesson==='_none'?'on':''}" data-tr="${k2}|${ci}|_none">(chưa gắn bài)<em>${none}</em></div>`:''}</details>`; }).join('')+`</details>`; }).join('')+`</details>`; }).join('');
+    const parts=[S.subject&&subjName(S.subject),S.grade&&('Lớp '+S.grade),S.topic,S.lesson&&(S.lesson==='_none'?'(chưa gắn bài)':S.lesson)].filter(Boolean);
+    $('#bkCrumb',el).innerHTML=parts.length?'📂 '+parts.map(esc).join(' › '):''; };
+  const em2=n=>`<em>${n}</em>`;
+  on(el,'click','[data-tr]',(t,e)=>{ e.preventDefault(); const p=t.dataset.tr.split('|'); S.subject=p[0]||''; S.grade=p[1]||''; const chs=p[1]?topicsOf(p[0],p[1]):[]; S.topic=p[2]!=null?chs[+p[2]]||'':''; S.lesson=p[3]==='_none'?'_none':(p[3]!=null?(lessonsOf(p[0],p[1],S.topic)[+p[3]]||''):''); S.page=1;
+    const d=t.parentElement; if(t.tagName==='SUMMARY'&&d.open&&!t.classList.contains('on')){} App.render(); });
+  const bindF=(id,k,re)=>{ $(id,el).addEventListener(id==='#fQ'?'input':'change',e=>{ S[k]=e.target.type==='checkbox'?e.target.checked:e.target.value; S.page=1; if(re){ S.topic=''; S.lesson=''; $('#fTopic',el).innerHTML=opts(topicOpts(),'','— Chủ đề —'); } draw(); }); };
+  bindF('#fS','subject',1); bindF('#fG','grade',1); bindF('#fTopic','topic'); $('#fTopic',el).addEventListener('change',()=>{ S.lesson=''; }); bindF('#fT','type'); bindF('#fL','level'); bindF('#fQ','q'); bindF('#fMine','mine'); bindF('#fB','bank');
   on(el,'click','[data-page]',b=>{ S.page=+b.dataset.page; draw(); window.scrollTo(0,0); });
   on(el,'click','[data-act]',b=>{ const a=b.dataset.act, q=b.dataset.id&&DB.get('questions',b.dataset.id);
     if(a==='new') questionEditor(null,draw); if(a==='edit') questionEditor(q,draw);
     if(a==='banks') banksModal(()=>{ $('#fB',el).innerHTML=bankOptions(S.bank,true); draw(); });
     if(a==='genx') generatorModal(draw);
+    if(a==='tree') curricModal(()=>App.render());
+    if(a==='decuong') decuongModal();
     if(a==='copyto'||a==='moveto'){ const list=filt().filter(q=>a==='copyto'||q.ownerId===me().id||isAdmin()); if(!list.length) return toast('Không có câu phù hợp','bad'); if(!myBanks().length) return toast('Hãy tạo một bộ ngân hàng trước (nút 📁 Bộ ngân hàng)','bad');
       modal({title:(a==='copyto'?'⧉ Sao chép ':'➜ Chuyển ')+list.length+' câu',body:`<div class="field"><label>Đến bộ ngân hàng</label><select id="ctB">${myBanks().map(b=>`<option value="${b.id}">${b.share==='school'?'🌐':'🔒'} ${esc(b.name)}</option>`).join('')}</select></div>`,foot:`<button class="btn" data-x>Huỷ</button><button class="btn pri" id="ctGo">Thực hiện</button>`,
         onOpen:(m,close)=>{ $('#ctGo',m).onclick=()=>{ const bid=$('#ctB',m).value; list.forEach(q=>{ if(a==='copyto') DB.data.questions.push({...JSON.parse(JSON.stringify(q)),id:uid('q'),bankId:bid,ownerId:me().id,createdAt:Date.now()}); else q.bankId=bid; }); DB.save(); Sync.markDirty('questions'); close(); toast('Đã xong','ok'); draw(); }; }}); }
@@ -300,4 +313,65 @@ function setPwModal(users,label){
         catch(e){ $('#spGo',m).disabled=false; $('#spMsg',m).className='note'; $('#spMsg',m).textContent='❌ Chưa lưu được lên máy chủ: '+e.message+'. Kiểm tra mạng và Khoá ghi rồi bấm lại.'; return; } }
       else { Sync.markDirty('users'); close(); toast(users.length>1?'Đã đặt lại mật khẩu':`Mật khẩu mới của ${users[0].name}: ${users[0].initPw}`,'ok'); }
       App.render(); }; }});
+}
+
+/* Thêm chương / bài vào cây chương trình (lưu trong DB.topics, đồng bộ máy chủ) */
+function curricModal(done){ const S=BankState;
+  modal({title:'🌳 Thêm chương / bài vào cây chương trình',body:`<div class="grid g2"><div class="field"><label>Môn</label><select id="cmS">${opts(subjList(),S.subject||'toan')}</select></div><div class="field"><label>Lớp</label><select id="cmG">${opts(GRADES,S.grade||12)}</select></div></div>
+    <div class="field"><label>Chương (chọn có sẵn hoặc gõ tên chương mới)</label><input type="text" id="cmC" list="cmCL" value="${esc(S.topic||'')}"><datalist id="cmCL"></datalist></div>
+    <div class="field"><label>Các bài cần thêm (mỗi dòng một bài, để trống nếu chỉ thêm chương)</label><textarea id="cmB" placeholder="Bài 1. ...&#10;Bài 2. ..."></textarea></div><div id="cmCur" class="muted"></div>`,
+    foot:`<button class="btn" data-x>Đóng</button><button class="btn pri" id="cmGo">Lưu vào cây</button>`,onOpen:(m,close)=>{
+      const upd=()=>{ const s=$('#cmS',m).value,g=$('#cmG',m).value; $('#cmCL',m).innerHTML=topicsOf(s,g).map(x=>`<option value="${esc(x)}">`).join(''); const ls=lessonsOf(s,g,$('#cmC',m).value.trim()); $('#cmCur',m).innerHTML=ls.length?'<b>Bài hiện có:</b> '+ls.map(esc).join(' · '):''; };
+      m.addEventListener('change',upd); m.addEventListener('input',upd); upd();
+      $('#cmGo',m).onclick=()=>{ const s=$('#cmS',m).value,g=+$('#cmG',m).value,c=$('#cmC',m).value.trim(); if(!c) return toast('Nhập tên chương','bad'); const bs=$('#cmB',m).value.split('\n').map(x=>x.trim()).filter(Boolean);
+        let t=DB.all('topics').find(x=>x.subject===s&&+x.grade===g&&x.name===c); if(!t){ t={id:uid('tp'),subject:s,grade:g,name:c,lessons:[]}; } t.lessons=[...new Set([...(t.lessons||[]),...bs])]; DB.upsert('topics',t); toast('Đã thêm vào cây chương trình','ok'); close(); done&&done(); }; }});
+}
+
+/* ===================== XUẤT ĐỀ CƯƠNG ÔN TẬP ===================== */
+function decuongModal(pre={}){ const S=BankState; let subj=pre.subject||S.subject||'toan', grade=+(pre.grade||S.grade||12);
+  modal({title:'📘 Xuất đề cương ôn tập',size:'lg',body:`<div class="grid g3"><div class="field"><label>Môn</label><select id="dcS">${opts(subjList(),subj)}</select></div><div class="field"><label>Lớp</label><select id="dcG">${opts(GRADES,grade)}</select></div><div class="field"><label>Năm học</label><input type="text" id="dcY" value="${esc((Exam.header({}).namhoc)||'')}"></div></div>
+    <div class="field"><label>Tiêu đề</label><input type="text" id="dcT" value="ĐỀ CƯƠNG ÔN TẬP CUỐI HỌC KÌ I"></div>
+    <div class="field"><label>Chọn chương / bài <small class="muted">(bấm ▸ để chọn từng bài)</small></label><div id="dcTree" class="card" style="max-height:280px;overflow:auto;padding:8px 12px"></div></div>
+    <div class="grid g2"><div><label style="font-weight:600">Nội dung</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="checkbox" class="chk" id="dcTh" checked> Tóm tắt lí thuyết (theo chương)</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="checkbox" class="chk" id="dcQ" checked> Bài tập theo từng bài</label>
+      <div class="row" style="gap:6px;margin:4px 0 4px 26px"><small>Số câu mỗi bài</small><input type="number" id="dcN" value="6" min="1" max="40" style="width:70px;padding:3px 6px"></div>
+      <div class="pill-list" style="margin-left:26px">${QTYPES.map(t=>`<label style="font-weight:500;display:flex;gap:4px;align-items:center"><input type="checkbox" class="chk" data-ty="${t.v}" ${t.v!=='essay'?'checked':''}> ${t.t}</label>`).join('')}</div></div>
+    <div><label style="font-weight:600">Đáp án</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="radio" name="dcA" value="none"> Không kèm đáp án</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="radio" name="dcA" value="key" checked> Bảng đáp án cuối đề cương</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="radio" name="dcA" value="sol"> Lời giải chi tiết cuối đề cương</label>
+      <label class="row" style="gap:6px;font-weight:500;margin:4px 0"><input type="checkbox" class="chk" id="dcNew"> Thay số mới cho câu tham số (mỗi lần xuất khác nhau)</label></div></div>
+    <p class="muted" id="dcInfo"></p>`,
+    foot:`<button class="btn" data-x>Đóng</button><button class="btn" id="dcP">🖨 In / PDF</button><button class="btn pri" id="dcW">⬇ Word (.docx)</button>`,onOpen:(m,close)=>{
+      const tree=()=>{ subj=$('#dcS',m).value; grade=+$('#dcG',m).value; const qs=visibleQuestions().filter(q=>q.subject===subj&&+q.grade===grade);
+        $('#dcTree',m).innerHTML=topicsOf(subj,grade).map((c,ci)=>{ const ls=lessonsOf(subj,grade,c); const n=qs.filter(q=>q.topic===c).length;
+          return `<details><summary style="cursor:pointer"><label style="display:inline-flex;gap:6px;align-items:center;font-weight:600"><input type="checkbox" class="chk" data-ch="${ci}"> ${esc(c)} <span class="badge gray">${n} câu</span></label></summary>${ls.map((b,bi)=>`<label style="display:flex;gap:6px;align-items:center;margin:3px 0 3px 30px;font-weight:400"><input type="checkbox" class="chk" data-ls="${ci}|${bi}"> ${esc(b)} <small class="muted">(${qs.filter(q=>q.topic===c&&q.lesson===b).length})</small></label>`).join('')}</details>`; }).join(''); };
+      $('#dcS',m).onchange=tree; $('#dcG',m).onchange=tree; tree();
+      m.addEventListener('change',e=>{ const t=e.target; if(t.dataset.ch!=null) $$(`[data-ls^="${t.dataset.ch}|"]`,m).forEach(x=>x.checked=t.checked); });
+      const build=()=>{ const ST=Exam.style(); const chs=topicsOf(subj,grade); const types=$$('[data-ty]',m).filter(x=>x.checked).map(x=>x.dataset.ty); const N=+$('#dcN',m).value||6; const ans=$('input[name=dcA]:checked',m).value; const seed=$('#dcNew',m).checked?'dc'+Date.now():'dc';
+        const sel=chs.map((c,ci)=>({c,ci,ls:lessonsOf(subj,grade,c).filter((b,bi)=>$(`[data-ls="${ci}|${bi}"]`,m).checked),all:$(`[data-ch="${ci}"]`,m).checked})).filter(x=>x.all||x.ls.length);
+        if(!sel.length){ toast('Chọn ít nhất một chương hoặc bài','bad'); return null; }
+        const H=Exam.header({}); const qs=visibleQuestions().filter(q=>q.subject===subj&&+q.grade===grade&&types.includes(q.type)); const th=theoryList();
+        let no=0; const keys=[]; const cq=ST.cA;
+        let h=`<table class="nb" style="width:100%"><tr><td class="c" style="width:42%">${esc(H.so)}<br><b>${esc(H.truong)}</b><br>────────</td><td class="c"><b style="color:${cq}">${esc($('#dcT',m).value).toUpperCase()}</b><br><b>MÔN ${esc(subjName(subj)).toUpperCase()} – LỚP ${grade}</b><br>${$('#dcY',m).value?`<i>Năm học ${esc($('#dcY',m).value)}</i>`:''}</td></tr></table><p></p>`;
+        h+=`<p><b>NỘI DUNG ÔN TẬP:</b> ${sel.map(x=>esc(x.c)).join('; ')}.</p>`;
+        const lvRank={NB:0,TH:1,VD:2,VDC:3}, tyRank={mcq:0,tf:1,short:2,essay:3};
+        const qBlock=list=>{ list.sort((a,b)=>(tyRank[a.type]-tyRank[b.type])||(lvRank[a.level]-lvRank[b.level])); let out=''; let lastT='';
+          list.forEach(q0=>{ const q=Param.instantiate(q0,seed+q0.id); if(q.type!==lastT){ out+=`<p><i><b>${{mcq:'Trắc nghiệm nhiều lựa chọn',tf:'Trắc nghiệm đúng – sai',short:'Trắc nghiệm trả lời ngắn',essay:'Tự luận'}[q.type]}</b></i></p>`; lastT=q.type; }
+            const it={q,no:++no,perm:[0,1,2,3],type:q.type}; keys.push(it); out+=Exam.qText(it,{style:ST}); }); return out; };
+        sel.forEach((x,k)=>{ h+=`<h2 style="color:${cq}">${esc(x.c)}</h2>`;
+          if($('#dcTh',m).checked){ const t=th.find(y=>y.s===subj&&+y.g===grade&&y.t===x.c); if(t) h+=`<h3>A. TÓM TẮT LÍ THUYẾT</h3>`+theoryHtml(t.h).replace(/<div class="th-box[^"]*">\s*(?:<b>([\s\S]*?)<\/b>)?([\s\S]*?)<\/div>/g,(_,b,x)=>`<table border="1" style="width:100%"><tr><td>${b?`<p><b style="color:${cq}">${b}</b></p>`:''}${x}</td></tr></table>`); }
+          if($('#dcQ',m).checked){ h+=`<h3>${$('#dcTh',m).checked?'B. ':''}BÀI TẬP</h3>`; const lsList=x.all?(lessonsOf(subj,grade,x.c).length?lessonsOf(subj,grade,x.c):['']):x.ls;
+            lsList.forEach(b=>{ const pool=shuffle(qs.filter(q=>q.topic===x.c&&(b===''||q.lesson===b)),seededRandom(seed+b)); const pick=[]; types.forEach(t=>pool.filter(q=>q.type===t).slice(0,Math.ceil(N/types.length)).forEach(q=>pick.push(q))); pool.forEach(q=>{ if(pick.length<N&&!pick.includes(q)) pick.push(q); });
+              if(!pick.length) return; if(b) h+=`<p class="part"><b style="color:${cq}">${esc(b)}</b></p>`; h+=qBlock(pick.slice(0,N)); });
+            if(x.all){ const extra=qs.filter(q=>q.topic===x.c&&!q.lesson); if(extra.length&&lessonsOf(subj,grade,x.c).length){ h+=`<p class="part"><b style="color:${cq}">Bài tập tổng hợp chương</b></p>`+qBlock(shuffle(extra,seededRandom(seed+x.c)).slice(0,N)); } } } });
+        if(ans!=='none'&&keys.length){ h+=`<br style="page-break-before:always"><h1 style="color:${cq}">${ans==='key'?'ĐÁP ÁN':'HƯỚNG DẪN GIẢI'}</h1>`;
+          if(ans==='key'){ const rows=[]; for(let i=0;i<keys.length;i+=8) rows.push(keys.slice(i,i+8)); h+=`<table border="1" class="center" style="width:100%">${rows.map(r=>`<tr>${r.map(it=>`<td><b>${it.no}.</b> ${it.q.type==='mcq'?LETTER[it.q.answer]:it.q.type==='tf'?it.q.answer.map(v=>v?'Đ':'S').join(''):it.q.type==='short'?esc(it.q.answer):'TL'}</td>`).join('')}${'<td></td>'.repeat(8-r.length)}</tr>`).join('')}</table>`; }
+          else keys.forEach(it=>{ h+=`<p class="qp"><b style="color:${ST.cQ}">Câu ${it.no}.</b></p>`+Exam.solBox(it,ST); }); }
+        $('#dcInfo',m).textContent=`Đề cương gồm ${keys.length} câu bài tập.`; return h; };
+      const font=()=>(typeof EXAM_FONTS!=='undefined'&&EXAM_FONTS[Exam.style().font])||{word:'Times New Roman',css:'"Times New Roman",serif'};
+      $('#dcW',m).onclick=()=>{ const h=build(); if(h) exportWord('De_cuong_'+subjName(subj)+'_'+grade,$('#dcT',m).value,h,{font:font().word,footer:'Đề cương '+subjName(subj)+' '+grade}); };
+      $('#dcP',m).onclick=()=>{ const h=build(); if(h) printHtml($('#dcT',m).value,h,{font:font().css}); };
+    }});
 }

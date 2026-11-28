@@ -51,7 +51,7 @@ function generatorModal(onDone){
     <div class="grid g4" style="margin-top:10px"><div class="field"><label>Môn</label><select id="gS">${opts(subjList(),G.subject)}</select></div><div class="field"><label>Lớp</label><select id="gG">${opts(GRADES,G.grade)}</select></div><div class="field"><label>Mức độ</label><select id="gL">${opts(LEVELS,'','— Tất cả —')}</select></div><div class="field"><label>Số câu sinh mỗi mẫu</label><input type="number" id="gN" value="5" min="1" max="50"></div></div>
     <div class="grid g3"><div class="field"><label>Chủ đề</label><select id="gT"></select></div><div class="field"><label>Nguồn mẫu</label><select id="gSrc"><option value="both">Mẫu LKT + câu tham số trong ngân hàng</option><option value="tpl">Chỉ mẫu sinh câu LKT</option><option value="bank">Chỉ câu tham số trong ngân hàng</option></select></div><div class="field"><label>Lưu vào bộ ngân hàng</label><select id="gB">${bankOptions('')}</select></div></div>
     <label style="display:flex;gap:6px;align-items:center;font-weight:500"><input type="checkbox" class="chk" id="gF"> Chỉ dùng mẫu có hình vẽ</label>
-    <div class="row" style="margin-top:10px"><b id="gInfo" class="grow"></b><button class="btn" id="gPrev">🎲 Sinh thử</button></div><div id="gOut" style="margin-top:10px;max-height:46vh;overflow:auto"></div>`,
+    <div class="row" style="margin-top:10px"><b id="gInfo" class="grow"></b><button class="btn" id="gAll" title="Sinh từ TẤT CẢ mẫu có hình của mọi môn">⚡ Nạp nhanh mọi mẫu có hình</button><button class="btn" id="gPrev">🎲 Sinh thử</button></div><div id="gOut" style="margin-top:10px;max-height:46vh;overflow:auto"></div>`,
     foot:`<button class="btn" data-x>Đóng</button><button class="btn pri" id="gSave" disabled>Lưu vào ngân hàng</button>`,onOpen:(m,close)=>{ let made=[];
       const pool=()=>{ const s=$('#gS',m).value,g=+$('#gG',m).value,t=$('#gT',m).value,l=$('#gL',m).value,src=$('#gSrc',m).value,f=$('#gF',m).checked;
         const ok=q=>q.subject===s&&+q.grade===g&&(!t||q.topic===t)&&(!l||q.level===l)&&(!f||q.figure);
@@ -62,6 +62,23 @@ function generatorModal(onDone){
       $('#gPrev',m).onclick=()=>{ const p=pool(), per=Math.min(50,Math.max(1,+$('#gN',m).value||1)); made=[]; p.forEach(q=>{ Param.clones(q,per).forEach(c=>{ delete c.tpl; if(q.tpl) c.parentId=q.id; made.push(c); }); });
         $('#gOut',m).innerHTML=made.length?`<p><b>${made.length}</b> câu đã sinh (hiển thị 30 câu đầu):</p>`+made.slice(0,30).map((q,i)=>qCard(q,{num:'#'+(i+1)})).join(''):emptyBox('Không có mẫu phù hợp');
         renderMath($('#gOut',m)); $('#gSave',m).disabled=!made.length; };
+      $('#gAll',m).onclick=()=>{ const per=Math.min(50,Math.max(1,+$('#gN',m).value||1)); made=[]; TEMPLATES.filter(q=>q.figure).forEach(q=>Param.clones(q,per).forEach(c=>{ delete c.tpl; c.parentId=q.id; made.push(c); }));
+        $('#gOut',m).innerHTML=`<p><b>${made.length}</b> câu có hình từ mọi môn (hiển thị 30 câu đầu) – bấm <b>Lưu vào ngân hàng</b>:</p>`+made.slice(0,30).map((q,i)=>qCard(q,{num:'#'+(i+1)})).join(''); renderMath($('#gOut',m)); $('#gSave',m).disabled=!made.length; };
       $('#gSave',m).onclick=()=>{ const b=$('#gB',m).value; made.forEach(q=>{ q.ownerId=me().id; q.bankId=b||undefined; q.shared=b?undefined:true; q.createdAt=Date.now(); DB.data.questions.push(q); }); DB.save(); Sync.markDirty('questions'); close(); toast(`Đã thêm ${made.length} câu vào ngân hàng`,'ok'); onDone&&onDone(); };
       topics(); info(); }});
 }
+
+/* ===================== NẠP SẴN CÂU MẪU (kể cả câu có hình) =====================
+ * Chạy khi mở app và sau mỗi lần tải dữ liệu từ máy chủ: nếu ngân hàng chưa có bộ câu mẫu
+ * phiên bản mới thì bổ sung (không trùng, không xoá câu của giáo viên). */
+const SeedSync = {
+  VER: 4, PER: 3,
+  ensure(d){ d.settings=d.settings||{}; if((d.settings.seedDone||0)>=this.VER) return 0;
+    const have=new Set(d.questions.map(q=>q.seedKey).filter(Boolean)); let n=0; const now=Date.now();
+    if(typeof SEED3!=='undefined') SEED3.build().forEach(q=>{ if(!have.has(q.seedKey)){ q.id='q_'+q.seedKey; d.questions.push(q); have.add(q.seedKey); n++; } });
+    if(typeof SEED2!=='undefined') SEED2.build().forEach(q=>{ if(!have.has(q.seedKey)){ q.id='q_'+q.seedKey; d.questions.push(q); have.add(q.seedKey); n++; } });
+    TEMPLATES.forEach(t=>{ const need=[]; for(let i=0;i<this.PER;i++) if(!have.has(`t3-${t.id}-${i}`)) need.push(i); if(!need.length) return;
+      let cs=[]; try{ cs=Param.clones(t,this.PER); }catch(e){}
+      need.forEach((i,j)=>{ const c=cs[j]; if(!c) return; delete c.tpl; c.seedKey=`t3-${t.id}-${i}`; c.id='q_'+c.seedKey; c.parentId=t.id; c.shared=true; c.ownerId='u_admin'; c.createdAt=now; d.questions.push(c); have.add(c.seedKey); n++; }); });
+    d.seedVersion=Math.max(d.seedVersion||0,SEED_VERSION); d.settings.seedDone=this.VER; return n; }
+};

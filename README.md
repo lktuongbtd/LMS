@@ -193,3 +193,13 @@ Dữ liệu (lớp, tài khoản, ngân hàng, đề, bài nộp) **không nằm
 - Bấm **In / PDF**: bản xem trước hiển thị công thức đẹp, không có dấu `$`.
 
 **Gặp sự cố?** Trang trắng hoặc lỗi lạ: bấm Ctrl + F5; nếu vẫn lỗi, kiểm tra đã tải đủ thư mục `js/` (đặc biệt file mới `js/docx.js`). Mất dữ liệu trên một máy: **Cài đặt → ⬆ Khôi phục** từ file sao lưu, hoặc **⬇ Tải từ máy chủ**.
+
+## 11. Bản 3.0 – Cây chương trình, ma trận 4 phần, form đề, đề cương
+
+- **Cây chương trình** (`js/curriculum.js`): 11 môn × lớp 10–12 → chương → bài theo bộ *Kết nối tri thức*. Ngân hàng có cây thư mục bên trái, bấm để lọc theo môn/lớp/chương/bài; nút ➕ để thêm chương/bài riêng. Câu hỏi có thêm trường **Bài / đơn vị kiến thức**. Chủ đề cũ tự đổi sang tên chương mới khi mở app.
+- **Ngân hàng mở rộng** (`js/bank3.js`): ~190 câu mới gắn theo bài (Toán là câu tham số sinh số tương tự vô hạn, có tự luận; các môn khác bổ sung lớp 10, 11).
+- **Ma trận 4 khung**: Phần I (TN nhiều lựa chọn) – II (Đúng/Sai) – III (Trả lời ngắn) – IV (Tự luận); mỗi khung nhập số câu theo Biết/Hiểu/Vận dụng, nút 🎯 chọn **câu cụ thể** từ ngân hàng, điểm mỗi câu chỉnh được; dòng nội dung theo chương hoặc từng bài.
+- **Xuất mẫu CV 7991**: khung ma trận + bản đặc tả đúng cấu trúc phụ lục 7991 (TNKQ/Tự luận × Biết/Hiểu/VD, tổng, tỉ lệ % điểm), tự đặt **khổ ngang** trong Word.
+- **Form đề khi xuất**: Chuẩn Bộ GD / Hiện đại có màu / Kiểu LaTeX; chọn màu nhãn “Câu”, màu chữ cái A B C D (tím, xanh, đỏ…), màu nhấn; phông Times New Roman, kiểu LaTeX (Libertinus Serif, STIX Two – có đủ dấu tiếng Việt), Cambria, Palatino.
+- **Xuất kèm**: đề từng mã, bảng đáp án từng mã, bảng đáp án tổng hợp các mã, hướng dẫn giải chi tiết, ma trận, đặc tả; có thể tách mỗi phần một file Word.
+- **Đề cương ôn tập**: Ngân hàng → 📘 Xuất đề cương → chọn chương/bài → tóm tắt lí thuyết + bài tập theo bài + đáp án/lời giải → Word hoặc In/PDF.

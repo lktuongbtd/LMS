@@ -63,7 +63,7 @@ const DocxIn = (()=>{
     if(numDoc){ [...numDoc.getElementsByTagNameNS(W,'abstractNum')].forEach(a=>{ const id=att(a,'abstractNumId'); absMap[id]={}; [...a.getElementsByTagNameNS(W,'lvl')].forEach(l=>{ const g=t=>{ const e=l.getElementsByTagNameNS(W,t)[0]; return e?att(e,'val'):null; }; absMap[id][att(l,'ilvl')]={fmt:g('numFmt'),text:g('lvlText')||'',start:+(g('start')||1)}; }); });
       [...numDoc.getElementsByTagNameNS(W,'num')].forEach(n=>{ const a=n.getElementsByTagNameNS(W,'abstractNumId')[0]; if(a) numMap[att(n,'numId')]=att(a,'val'); }); }
     const fmtNum=(v,f)=>f==='upperLetter'?String.fromCharCode(64+v):f==='lowerLetter'?String.fromCharCode(96+v):f==='upperRoman'?['','I','II','III','IV','V','VI','VII','VIII','IX','X'][v]||v:f==='lowerRoman'?['','i','ii','iii','iv','v','vi'][v]||v:f==='bullet'?'•':String(v);
-    const imgs=[], warn=new Set(); const media={};
+    const imgs=[], warn=new Set(); const media={}; const stat={};
     async function image(rid){ const t=rels[rid]; if(!t) return ''; const path=('word/'+t).replace(/word\/\.\.\//,''); if(media[path]!=null) return `[[img:${media[path]}]]`;
       const f=zip.file(path); if(!f) return ''; const ext=path.split('.').pop().toLowerCase();
       if(['wmf','emf'].includes(ext)){ warn.add('mathtype'); return '[[MathType]]'; }
@@ -77,7 +77,9 @@ const DocxIn = (()=>{
             else if(kn==='sym'){ const code=parseInt(att(k,'char')||'0',16); const map={0xB3:'≥',0xA3:'≤',0xB9:'≠',0xB1:'±',0xD0:'∠',0x5E:'⊥',0xDE:'⇒',0xDB:'⇔',0xAE:'→',0xCE:'∈',0xCF:'∉',0x70:'π',0x44:'Δ',0xA5:'∞'}; out.push({t:map[code&0xFF]||String.fromCharCode(code>0xF000?code-0xF000:code),...f}); }
             else if(kn==='drawing'){ const bl=k.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/main','blip')[0]; if(bl){ const rid=bl.getAttributeNS(R,'embed')||bl.getAttribute('r:embed'); out.push({t:' '+await image(rid)+' '}); } }
             else if(kn==='pict'||kn==='object'){ const im=k.getElementsByTagName('v:imagedata')[0]; const isEq=/Equation|MathType/i.test(k.innerHTML||new XMLSerializer().serializeToString(k));
-              if(isEq){ warn.add('mathtype'); out.push({t:' [[MathType]] '}); } else if(im){ const rid=im.getAttributeNS(R,'id')||im.getAttribute('r:id'); out.push({t:' '+await image(rid)+' '}); } } } }
+              if(isEq){ let tex=null; try{ const ole=k.getElementsByTagNameNS('urn:schemas-microsoft-com:office:office','OLEObject')[0]; const rid=ole&&(ole.getAttributeNS(R,'id')||ole.getAttribute('r:id')); const t=rid&&rels[rid];
+                  const fz=t&&zip.file(('word/'+t).replace(/word\/\.\.\//,'')); if(fz&&typeof MathTypeOLE!=='undefined') tex=MathTypeOLE.toTex(await fz.async('uint8array')); }catch(e){ console.warn('MathType',e); tex=null; }
+                if(tex){ stat.mt=(stat.mt||0)+1; out.push({t:'$'+tex+'$',math:1,...f}); } else { warn.add('mathtype'); out.push({t:' [[MathType]] '}); } } else if(im){ const rid=im.getAttributeNS(R,'id')||im.getAttribute('r:id'); out.push({t:' '+await image(rid)+' '}); } } } }
         else if(n==='oMath'){ out.push({t:'$'+Omml.toTex(c)+'$',math:1}); }
         else if(n==='oMathPara'){ kids(c).filter(x=>ln(x)==='oMath').forEach(m=>out.push({t:' $'+Omml.toTex(m)+'$ ',math:1})); }
         else if(['hyperlink','ins','smartTag','sdt','sdtContent','fldSimple','customXml','moveTo'].includes(n)) await runSegs(c,out);
@@ -92,7 +94,7 @@ const DocxIn = (()=>{
       let cur=[]; segs.forEach(s=>{ if(s.t==='\n'){ lines.push(cur); cur=[]; } else cur.push(s); }); lines.push(cur); }
     async function block(node){ for(const c of kids(node)){ const n=ln(c); if(n==='p') await para(c); else if(n==='tbl'){ for(const tr of kids(c).filter(x=>ln(x)==='tr')) for(const tc of kids(tr).filter(x=>ln(x)==='tc')) await block(tc); } else if(['sdt','sdtContent','customXml'].includes(n)) await block(c); } }
     await block(doc.getElementsByTagNameNS(W,'body')[0]);
-    return {lines,imgs,warn:[...warn]};
+    return {lines,imgs,warn:[...warn],mt:stat.mt||0};
   }
   /* Đoạn có định dạng → dòng văn bản mẫu, nhận diện đáp án gạch chân / tô đỏ / tô vàng */
   function toText({lines}){
@@ -154,8 +156,8 @@ D. <phương án>
 - Nếu câu có hình vẽ, đồ thị, bảng biến thiên hay bảng số liệu dạng hình, thêm một dòng "Hình: [cần cắt hình]" ngay sau nội dung câu.
 - Có lời giải thì ghi dòng "Lời giải: ...".
 - Giữ nguyên số thứ tự câu và các tiêu đề PHẦN I, PHẦN II, PHẦN III nếu có (ghi trên một dòng bắt đầu bằng #).`,
-  async ai(dataUrl,extraText){ const st=DB.data.settings; const key=(st.aiKey||'').trim(); if(!key) throw new Error('Chưa nhập khoá API Gemini (mục ⚙️ Nhận dạng AI)');
-    const model=(st.aiModel||'gemini-2.5-flash').trim(); const parts=[{text:extraText?this.PROMPT+'\n\nVăn bản cần chuẩn hoá:\n'+extraText:this.PROMPT}];
+  async ai(dataUrl,extraText){ const st=DB.data.settings; const key=(st.aiKey||CFG.aiKey||'').trim(); if(!key) throw new Error('Chưa nhập khoá API Gemini (mục ⚙️ Nhận dạng AI)');
+    const model=(st.aiModel||CFG.aiModel||'gemini-2.5-flash').trim(); const parts=[{text:extraText?this.PROMPT+'\n\nVăn bản cần chuẩn hoá:\n'+extraText:this.PROMPT}];
     if(dataUrl){ const [meta,b64]=dataUrl.split(','); parts.push({inline_data:{mime_type:meta.match(/data:(.*?);/)[1],data:b64}}); }
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts}],generationConfig:{temperature:0}})});
     const j=await r.json().catch(()=>({})); if(!r.ok||j.error) throw new Error((j.error&&j.error.message)||('Lỗi máy chủ AI '+r.status));
@@ -175,9 +177,9 @@ Router.add('import',el=>{
   el.innerHTML=head('Nhập đề: Word · PDF · Ảnh','Tải lên → hệ thống tự chuyển về mẫu chuẩn → sửa trực tiếp, xem trước ngay → lưu vào bộ ngân hàng / tạo đề / tải Word đã chuẩn hoá')+
   `<div class="card" style="margin-bottom:14px"><div class="row" style="gap:10px">
      <button class="btn pri" data-act="docx">📄 Word (.docx)</button><button class="btn pri" data-act="pdf">📕 PDF</button><button class="btn pri" data-act="img">🖼 Ảnh chụp / scan</button><button class="btn" data-act="tpl">📝 Mẫu văn bản</button>
-     <span class="grow"></span><select id="imEng" style="width:auto"><option value="ai" ${st.aiKey?'selected':''}>🤖 Nhận dạng AI Gemini (chữ + công thức)</option><option value="text">📋 Lấy lớp chữ PDF (nhanh, PDF gốc)</option><option value="ocr" ${st.aiKey?'':'selected'}>🔤 OCR miễn phí (chỉ chữ, cần mạng)</option></select></div>
-   <details style="margin-top:10px" ${st.aiKey?'':'open'}><summary style="cursor:pointer;font-weight:600">⚙️ Nhận dạng AI (Gemini) – khuyên dùng cho PDF/ảnh có công thức</summary>
-     <div class="grid g3" style="margin-top:8px"><div class="field"><label>Khoá API Gemini (lưu trên máy này, không gửi lên máy chủ LMS)</label><input type="password" id="imKey" value="${esc(st.aiKey||'')}" placeholder="AIza..."></div><div class="field"><label>Mô hình</label><input type="text" id="imModel" value="${esc(st.aiModel||'gemini-2.5-flash')}"></div><div class="field"><label>&nbsp;</label><button class="btn" data-act="savekey">Lưu khoá</button></div></div>
+     <span class="grow"></span><select id="imEng" style="width:auto"><option value="ai" ${(st.aiKey||CFG.aiKey)?'selected':''}>🤖 Nhận dạng AI Gemini (chữ + công thức)</option><option value="text">📋 Lấy lớp chữ PDF (nhanh, PDF gốc)</option><option value="ocr" ${(st.aiKey||CFG.aiKey)?'':'selected'}>🔤 OCR miễn phí (chỉ chữ, cần mạng)</option></select></div>
+   <details style="margin-top:10px" ${(st.aiKey||CFG.aiKey)?'':'open'}><summary style="cursor:pointer;font-weight:600">⚙️ Nhận dạng AI (Gemini) – khuyên dùng cho PDF/ảnh có công thức</summary>
+     <div class="grid g3" style="margin-top:8px"><div class="field"><label>Khoá API Gemini (lưu trên máy này, không gửi lên máy chủ LMS)</label><input type="password" id="imKey" value="${esc(st.aiKey||'')}" placeholder="AIza..."></div><div class="field"><label>Mô hình</label><input type="text" id="imModel" value="${esc(st.aiModel||CFG.aiModel||'gemini-2.5-flash')}"></div><div class="field"><label>&nbsp;</label><button class="btn" data-act="savekey">Lưu khoá</button></div></div>
      <small class="muted">Lấy khoá miễn phí tại aistudio.google.com/apikey (đăng nhập Gmail → Create API key). Ảnh trang đề được gửi thẳng từ trình duyệt tới Google để nhận dạng.</small></details></div>
   <div id="imPages"></div>
   <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;gap:14px">
@@ -197,7 +199,7 @@ Router.add('import',el=>{
     $('#imPrev',el).innerHTML=parsed.questions.length?parsed.questions.map((q,i)=>{ const e=errAt(i); return `<div style="${e.length?'outline:2px solid #fca5a5;border-radius:12px;':''}">${qCard(Param.instantiate(impResolve(q),'imp'),{num:'Câu '+(i+1)+'.'})}${e.length?`<div class="note" style="margin:-6px 0 10px">${e.map(esc).join('<br>')}</div>`:''}</div>`; }).join(''):emptyBox('Tải file lên hoặc gõ/dán theo mẫu (bấm 📝 Mẫu văn bản)','📄');
     renderMath($('#imPrev',el));
     const mt=(ta.value.match(/\[\[MathType\]\]/g)||[]).length, cut=(ta.value.match(/cần cắt hình/g)||[]).length;
-    $('#imWarn',el).innerHTML=(mt?`<div class="note" style="margin-top:8px">⚠ Có <b>${mt}</b> công thức <b>MathType</b> (dạng ảnh, không đọc được). Cách nhanh: trong Word chọn tab <b>MathType → Convert Equations</b> → chuyển sang <b>Microsoft Office equations</b> (Office Math) → lưu rồi tải lên lại.</div>`:'')+(cut?`<div class="note info" style="margin-top:8px">✂ Có <b>${cut}</b> chỗ ghi “cần cắt hình”: đặt con trỏ tại dòng đó, bấm vào trang ở trên để cắt hình.</div>`:''); };
+    $('#imWarn',el).innerHTML=(mt?`<div class="note" style="margin-top:8px">⚠ Có <b>${mt}</b> công thức <b>MathType</b> không đọc được (thường do file cũ lưu công thức dạng ảnh). Cách xử lý: trong Word chọn tab <b>MathType → Convert Equations</b> → chuyển sang <b>Microsoft Office equations</b> (Office Math) → lưu rồi tải lên lại.</div>`:'')+(cut?`<div class="note info" style="margin-top:8px">✂ Có <b>${cut}</b> chỗ ghi “cần cắt hình”: đặt con trỏ tại dòng đó, bấm vào trang ở trên để cắt hình.</div>`:''); };
   let tm; ta.oninput=()=>{ clearTimeout(tm); tm=setTimeout(preview,450); }; ta.onkeyup=ta.onclick=()=>{ Imp.cursor=ta.selectionStart; };
   ['#imS','#imG','#imL','#imT'].forEach(id=>$(id,el).addEventListener('change',preview));
   const topics=()=>{ $('#imTL',el).innerHTML=topicsOf($('#imS',el).value,$('#imG',el).value).map(x=>`<option value="${esc(x)}">`).join(''); }; $('#imS',el).addEventListener('change',topics); $('#imG',el).addEventListener('change',topics); topics();
@@ -229,7 +231,7 @@ Router.add('import',el=>{
     const a=b.dataset.act;
     if(a==='savekey'){ st.aiKey=$('#imKey',el).value.trim(); st.aiModel=$('#imModel',el).value.trim()||'gemini-2.5-flash'; DB.save(); toast('Đã lưu khoá trên máy này','ok'); }
     if(a==='docx') pickFile('.docx',async f=>{ try{ busy('Đang đọc file Word…'); const r=await DocxIn.parse(f); r.imgs.forEach(x=>Imp.imgs.push(x)); const off=Imp.imgs.length-r.imgs.length; let t=DocxIn.toText(r).replace(/\[\[img:(\d+)\]\]/g,(_,i)=>`[[img:${+i+off}]]`);
-        append(t); busy(''); toast(`Đã đọc ${f.name}: ${parsed.questions.length} câu`,'ok'); if(r.warn.includes('mathtype')) toast('File có công thức MathType – xem hướng dẫn dưới ô văn bản','bad'); }catch(e){ busy(''); toast('Lỗi đọc Word: '+e.message,'bad'); } });
+        append(t); busy(''); toast(`Đã đọc ${f.name}: ${parsed.questions.length} câu`+(r.mt?` · đã chuyển ${r.mt} công thức MathType`:''),'ok'); if(r.warn.includes('mathtype')) toast('File có công thức MathType – xem hướng dẫn dưới ô văn bản','bad'); }catch(e){ busy(''); toast('Lỗi đọc Word: '+e.message,'bad'); } });
     if(a==='pdf') pickFile('.pdf',async f=>{ try{ const ps=await Recog.pdfPages(f,busy); Imp.pages.push(...ps); busy(''); drawPages(); const eng=$('#imEng',el).value;
         if(eng==='text'&&ps.some(p=>p.text.length>80)){ append(ps.map(p=>p.text).join('\n')); toast('Đã lấy lớp chữ PDF – công thức có thể bị lỗi, nên dùng AI nếu đề nhiều công thức','ok'); }
         else toast(`Đã tải ${ps.length} trang – bấm “Nhận dạng tất cả trang”`,'ok'); }catch(e){ busy(''); toast(e.message,'bad'); } });

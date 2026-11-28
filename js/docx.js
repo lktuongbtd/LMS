@@ -3,7 +3,7 @@
 'use strict';
 const Docx = (()=>{
   const X=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const PAGE_W=9921; // twips: A4 21cm – lề trái 2cm – lề phải 1,5cm
+  let PAGE_W=9921; const PW_PORT=9921, PW_LAND=14853; // twips: A4 21cm – lề trái 2cm – lề phải 1,5cm
   /* ================= MathML → OMML ================= */
   const NARY=new Set(['∑','∫','∬','∭','∮','∏','⋃','⋂','⨁']);
   const ACC={'→':'⃗','⃗':'⃗','←':'⃖','↔':'⃡','^':'̂','ˆ':'̂','̂':'̂','~':'̃','˜':'̃','̃':'̃','˙':'̇','̇':'̇','¨':'̈','ˇ':'̌','´':'́','`':'̀'};
@@ -56,6 +56,9 @@ const Docx = (()=>{
     const doc=parser.parseFromString(m[0],'application/xml'); if(doc.getElementsByTagName('parsererror').length) return null;
     const body=conv(doc.documentElement); if(!body) return null;
     return display?`<m:oMathPara><m:oMath>${body}</m:oMath></m:oMathPara>`:`<m:oMath>${body}</m:oMath>`; }
+  /* ================= Khổ giấy / section ================= */
+  let ORIENT='portrait', SWLEN=0;
+  const SECT=o=>o==='landscape'?'<w:sectPr><w:footerReference w:type="default" r:id="rIdFtr"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="851" w:right="851" w:bottom="851" w:left="1134" w:header="425" w:footer="425" w:gutter="0"/></w:sectPr>':'<w:sectPr><w:footerReference w:type="default" r:id="rIdFtr"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="851" w:right="851" w:bottom="851" w:left="1134" w:header="425" w:footer="425" w:gutter="0"/></w:sectPr>';
   /* ================= HTML → WordprocessingML ================= */
   function build(html,{size=12,font='Times New Roman',imgs=[]}){
     const doc=parser.parseFromString(`<body>${html}</body>`,'text/html'); const rels=[]; let pid=1;
@@ -75,6 +78,7 @@ const Docx = (()=>{
       if(t==='br') return '<w:r><w:br/></w:r>'; if(t==='img'){ const i=n.getAttribute('data-img'); return i!=null?drawing(+i):''; }
       if(t==='style'||t==='script'||t==='button') return '';
       const g={...f}; if(t==='b'||t==='strong'||/font-weight:\s*(bold|[6-9]00)/.test(st)) g.b=1; if(t==='i'||t==='em'||/font-style:\s*italic/.test(st)) g.i=1; if(t==='u'||/underline/.test(st)) g.u=1;
+      { const cm=st.match(/(?:^|;)\s*color:\s*#([0-9a-fA-F]{6})/); if(cm) g.color=cm[1].toUpperCase(); }
       if(t==='sup') g.va='superscript'; if(t==='sub') g.va='subscript'; if(t==='code') g.mono=1; if(t==='small') g.sz=(size-1)*2; if(/border/.test(st)&&t==='span') g.bdr=1;
       return [...n.childNodes].map(c=>inline(c,g)).join(''); }
     const isBlock=n=>n.nodeType===1&&['p','h1','h2','h3','h4','div','table','ul','ol','li','section'].includes(tag(n));
@@ -82,21 +86,24 @@ const Docx = (()=>{
       const center=t==='h1'||/\bc\b/.test(cls)||/qfigp/.test(cls)||/text-align:\s*center/.test(st)||(cell&&cell.center); const right=/text-align:\s*right/.test(st)||(cell&&cell.right);
       const ml=(st.match(/margin-left:\s*([\d.]+)pt/)||[])[1];
       const before=t==='h1'?120:t==='h2'?160:t==='h3'?100:/part/.test(cls)?100:/qp/.test(cls)?60:0;
-      return `<w:pPr>${/keep/.test(cls)?'<w:keepNext/>':''}<w:spacing w:before="${cell?0:before}" w:after="${cell?0:30}" w:line="264" w:lineRule="auto"/>${ml?`<w:ind w:left="${Math.round(ml*20)}"/>`:''}${center?'<w:jc w:val="center"/>':right?'<w:jc w:val="right"/>':(cell?'':'<w:jc w:val="both"/>')}</w:pPr>`; }
+      const box=/\bsolbox\b/.test(cls)?`<w:pBdr><w:left w:val="single" w:sz="18" w:space="6" w:color="${(n.getAttribute('data-c')||'7C3AED')}"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="${(n.getAttribute('data-bg')||'F5F3FF')}"/>`:'';
+      return `<w:pPr>${/keep/.test(cls)?'<w:keepNext/>':''}${box}<w:spacing w:before="${cell?0:before}" w:after="${cell?0:30}" w:line="264" w:lineRule="auto"/>${ml?`<w:ind w:left="${Math.round(ml*20)}"/>`:''}${center?'<w:jc w:val="center"/>':right?'<w:jc w:val="right"/>':(cell?'':'<w:jc w:val="both"/>')}</w:pPr>`; }
     function para(n,t,cell,prefix=''){ if([...n.childNodes].some(isBlock)) return blocks(n,cell);
-      const f={}; if(/^h[1-4]$/.test(t)){ f.b=1; f.sz=(t==='h1'?size+3:t==='h2'?size+1:size)*2; } if(cell&&cell.th) f.b=1;
+      const f={}; if(/^h[1-4]$/.test(t)){ f.b=1; f.sz=(t==='h1'?size+3:t==='h2'?size+1:size)*2; } if(cell&&cell.th) f.b=1; if(cell&&cell.sz) f.sz=cell.sz;
       return `<w:p>${pPr(n,t,cell)}${prefix?tr(prefix,{}):''}${[...n.childNodes].map(c=>inline(c,f)).join('')}</w:p>`; }
     function blocks(parent,cell){ let out='', inl='', hasInl=false; const flush=()=>{ if(hasInl){ out+=`<w:p>${pPr(parent,'p',cell)}${inl}</w:p>`; } inl=''; hasInl=false; };
       for(const n of parent.childNodes){
-        if(n.nodeType===3){ if(!hasInl&&!n.nodeValue.trim()) continue; inl+=inline(n,cell&&cell.th?{b:1}:{}); hasInl=true; continue; }
+        if(n.nodeType===3){ if(!hasInl&&!n.nodeValue.trim()) continue; inl+=inline(n,{...(cell&&cell.th?{b:1}:{}),...(cell&&cell.sz?{sz:cell.sz}:{})}); hasInl=true; continue; }
         if(n.nodeType!==1) continue; const t=tag(n);
         if(t==='br'&&/page-break/.test(n.getAttribute('style')||'')){ flush(); out+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; continue; }
         if(t==='table'){ flush(); out+=table(n); if(cell) out+='<w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p>'; continue; }
         if(t==='ul'||t==='ol'){ flush(); [...n.children].forEach((li,i)=>out+=para(li,'li',cell,t==='ol'?(i+1)+'. ':'• ')); continue; }
+        if(t==='section'&&n.getAttribute('data-orient')&&!cell){ flush(); const o=n.getAttribute('data-orient'); if(o!==ORIENT){ out=out.replace(/(<w:p><w:r><w:br w:type="page"\/><\/w:r><\/w:p>)+$/,''); if(out.length>SWLEN) out+=`<w:p><w:pPr><w:spacing w:after="0"/>${SECT(ORIENT)}</w:pPr></w:p>`; ORIENT=o; PAGE_W=o==='landscape'?PW_LAND:PW_PORT; SWLEN=out.length; }
+          out+=blocks(n,cell); continue; }
         if(t==='div'||t==='section'){ flush(); out+=blocks(n,cell); continue; }
         if(['p','h1','h2','h3','h4','li'].includes(t)){ flush(); out+=para(n,t,cell); continue; }
         if(t==='style'||t==='script') continue;
-        inl+=inline(n,cell&&cell.th?{b:1}:{}); hasInl=true; }
+        inl+=inline(n,{...(cell&&cell.th?{b:1}:{}),...(cell&&cell.sz?{sz:cell.sz}:{})}); hasInl=true; }
       flush(); return out; }
     function table(tb){ const rows=[...tb.rows]; if(!rows.length) return ''; const cls=tb.getAttribute('class')||'';
       const border=!/\bnb\b/.test(cls)&&(tb.getAttribute('border')==='1'||/\btbl\b/.test(cls));
@@ -114,23 +121,24 @@ const Docx = (()=>{
           let tcPr=`<w:tcW w:w="${w}" w:type="dxa"/>${cs>1?`<w:gridSpan w:val="${cs}"/>`:''}`;
           if(!g||g.cont){ if(g&&g.cont) tcPr+='<w:vMerge/>'; x+=`<w:tc><w:tcPr>${tcPr}</w:tcPr><w:p/></w:tc>`; continue; }
           const td=g.td, th=tag(td)==='th', tst=td.getAttribute('style')||'', tcl=td.getAttribute('class')||'';
-          if(g.rs>1) tcPr+='<w:vMerge w:val="restart"/>'; if(th) tcPr+='<w:shd w:val="clear" w:color="auto" w:fill="E8ECF7"/>';
+          if(g.rs>1) tcPr+='<w:vMerge w:val="restart"/>'; { const bg=(tst.match(/background(?:-color)?:\s*#([0-9a-fA-F]{6})/)||[])[1]; if(bg) tcPr+=`<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>`; else if(th) tcPr+='<w:shd w:val="clear" w:color="auto" w:fill="E8ECF7"/>'; }
           tcPr+=`<w:vAlign w:val="${/vertical-align:\s*top/.test(tst)?'top':/vertical-align:\s*middle/.test(tst)||th||border?'center':'top'}"/>`;
-          const cell={th,center:th||/\bc\b/.test(tcl)||/text-align:\s*center/.test(tst)||(border&&/center/.test(cls)),right:/text-align:\s*right/.test(tst)};
+          const cell={th,center:!/text-align:\s*left/.test(tst)&&(th||/\bc\b/.test(tcl)||/text-align:\s*center/.test(tst)||(border&&/center/.test(cls))),right:/text-align:\s*right/.test(tst),sz:/\bm7991\b/.test(cls)?20:0};
           let inner=blocks(td,cell); if(!/<w:p[ >]/.test(inner)||/<\/w:tbl>$/.test(inner)) inner+='<w:p/>';
           x+=`<w:tc><w:tcPr>${tcPr}</w:tcPr>${inner}</w:tc>`; c+=cs-1; }
         x+='</w:tr>'; });
       return x+'</w:tbl>'; }
-    const body=blocks(doc.body,null);
-    return {body,rels}; }
+    ORIENT='portrait'; PAGE_W=PW_PORT; SWLEN=0;
+    let body=blocks(doc.body,null); const last=ORIENT; ORIENT='portrait'; PAGE_W=PW_PORT;
+    return {body,rels,last}; }
   /* ================= Đóng gói .docx ================= */
   const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
   async function make(html,{size=12,font='Times New Roman',title='',footer=''}={}){
     const svgs=[]; html=html.replace(/<svg[\s\S]*?<\/svg>|<img[^>]*src="data:image\/[^"]+"[^>]*>/g,m=>{ svgs.push(m); return `<img data-img="${svgs.length-1}">`; });
     const imgs=await Promise.all(svgs.map(s=>svgToPng(s,2.5)));
-    const {body,rels}=build(html,{size,font,imgs});
+    const {body,rels,last}=build(html,{size,font,imgs});
     const hdr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-    const document=`${hdr}<w:document ${NS}><w:body>${body}<w:sectPr><w:footerReference w:type="default" r:id="rIdFtr"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="851" w:right="851" w:bottom="851" w:left="1134" w:header="425" w:footer="425" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+    const document=`${hdr}<w:document ${NS}><w:body>${body}${SECT(last)}</w:body></w:document>`;
     const styles=`${hdr}<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="${font}" w:cs="${font}"/><w:sz w:val="${size*2}"/><w:szCs w:val="${size*2}"/><w:lang w:val="vi-VN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`;
     const settings=`${hdr}<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><w:defaultTabStop w:val="720"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat><m:mathPr><m:mathFont m:val="Cambria Math"/><m:dispDef/><m:wrapIndent m:val="1440"/><m:intLim m:val="subSup"/><m:naryLim m:val="undOvr"/></m:mathPr></w:settings>`;
     const ftr=`${hdr}<w:ftr ${NS}><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${X(footer)}${footer?' – ':''}Trang </w:t></w:r><w:fldSimple w:instr="PAGE"><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>/</w:t></w:r><w:fldSimple w:instr="NUMPAGES"><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple></w:p></w:ftr>`;

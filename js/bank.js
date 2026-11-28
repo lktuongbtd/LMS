@@ -48,7 +48,7 @@ const TOPICS = {
   anh:{10:['Phonetics','Grammar','Vocabulary','Communication','Reading','Writing'],11:['Phonetics','Grammar','Vocabulary','Communication','Reading','Writing'],12:['Phonetics','Grammar','Vocabulary','Communication','Reading','Writing']},
   van:{10:['Đọc hiểu','Viết đoạn văn nghị luận','Viết bài văn nghị luận'],11:['Đọc hiểu','Viết đoạn văn nghị luận','Viết bài văn nghị luận'],12:['Đọc hiểu','Viết đoạn văn nghị luận','Viết bài văn nghị luận']}
 };
-function topicsOf(subject,grade){ const base=((TOPICS[subject]||{})[grade])||[]; const extra=DB.all('topics').filter(t=>t.subject===subject&&+t.grade===+grade).map(t=>t.name);
+function topicsOf(subject,grade){ const base=(typeof chaptersOf==='function')?chaptersOf(subject,grade):(((TOPICS[subject]||{})[grade])||[]); const extra=DB.all('topics').filter(t=>t.subject===subject&&+t.grade===+grade).map(t=>t.name);
   const fromBank=DB.all('questions').filter(q=>q.subject===subject&&+q.grade===+grade).map(q=>q.topic); return [...new Set([...base,...extra,...fromBank])].filter(Boolean); }
 
 /* ================= CÂU HỎI THAM SỐ – "SỐ TƯƠNG TỰ" =================
@@ -86,7 +86,7 @@ const Param = {
       .map(seg=>/^\$/.test(seg)&&seg!==undefined ? this.tidy(seg) : seg).join(''); },
   tidy(m){ // chuẩn hoá biểu thức sau khi thay số: 1x → x, +- → -, -- → +
     return m.replace(/([=+\-(,;\s{\[|$]|\\left\()1(?=[a-zA-Z(]|\\sqrt|\\pi|\\ln|\\log|\\sin|\\cos)/g,(a,b)=>b)
-      .replace(/\+\s*-/g,'-').replace(/-\s*-/g,'+').replace(/-\s*\+/g,'-'); },
+      .replace(/\+\s*-/g,'-').replace(/-\s*-/g,'+').replace(/-\s*\+/g,'-').replace(/([a-zA-Z)])\^\{1\}/g,'$1').replace(/([a-zA-Z)])\^1(?![\d.,{])/g,'$1'); },
   has(q){ return !!(q && q.params && String(q.params).trim()); },
   instantiate(q,seed){
     if(!this.has(q)) return q;

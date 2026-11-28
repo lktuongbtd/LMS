@@ -115,7 +115,7 @@ ${B('ex','Ví dụ','Theo sơ đồ cây: $P(B)=0{,}6\\cdot0{,}7+0{,}4\\cdot0{,}
 {s:'cn',g:12,t:'Kĩ thuật điện',h:`${B('f','Công thức','$P=UI$; $A=Pt$ (kWh); đoạn mạch nối tiếp $R=R_1+R_2$; song song $\\dfrac1R=\\dfrac1{R_1}+\\dfrac1{R_2}$; định luật Ohm $I=\\dfrac UR$.')}[[@mach r=R1,R2; kieu=song]]${B('note','An toàn điện','Dùng aptomat, dây nối đất; không chạm tay ướt vào thiết bị; ngắt điện trước khi sửa chữa.')}`},
 {s:'cn',g:12,t:'Kĩ thuật điện tử',h:`${B('def','Linh kiện','Điện trở (hạn chế dòng), tụ điện (ngăn một chiều, cho xoay chiều qua), cuộn cảm, diode (dẫn một chiều), transistor (khuếch đại, đóng cắt), IC (mạch tích hợp).')}`}
 ];
-function theoryList(){ const custom=DB.all('theory'); const map=new Map(THEORY_SEED.map(x=>[x.s+'|'+x.g+'|'+x.t,{...x,seed:true}])); custom.forEach(x=>map.set(x.s+'|'+x.g+'|'+x.t,x)); return [...map.values()].filter(x=>!x.hidden); }
+function theoryList(){ const al=x=>{ const t=(typeof TOPIC_ALIAS!=='undefined'&&(TOPIC_ALIAS[x.s]||{})[x.t])||x.t; return t===x.t?x:{...x,t,t0:x.t}; }; const custom=DB.all('theory'); const map=new Map(THEORY_SEED.map(x=>al({...x,seed:true})).map(x=>[x.s+'|'+x.g+'|'+x.t,x])); custom.map(al).forEach(x=>map.set(x.s+'|'+x.g+'|'+x.t,x)); return [...map.values()].filter(x=>!x.hidden&&x.t); }
 function theoryHtml(h){ return String(h||'').replace(/\[\[(@[^\]]+)\]\]/g,(_,spec)=>`<div class="th-fig">${Fig.render(spec)}</div>`); }
 const ThState={s:'toan',g:12,t:''};
 Router.add('theory',(el,[key])=>{

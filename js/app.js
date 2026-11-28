@@ -74,6 +74,6 @@ const App = {
 };
 window.addEventListener('hashchange',()=>App.render());
 (async function boot(){
-  DB.load(); SEED.finish(DB.data); if(typeof SEED2!=='undefined') SEED2.upgrade(DB.data); DB.save(); Auth.init(); App.render();
+  DB.load(); SEED.finish(DB.data); if(typeof SEED2!=='undefined') SEED2.upgrade(DB.data); if(typeof SeedSync!=='undefined') SeedSync.ensure(DB.data); if(typeof migrateCurric==='function') migrateCurric(DB.data); DB.save(); Auth.init(); App.render();
   if(Sync.on&&Auth.user){ try{ await Sync.pull(Auth.is('admin','teacher')); await Sync.flushOutbox(); Auth.init(); if(!/take|try/.test(location.hash)) App.render(); }catch(e){ setSyncDot(false); } }
 })();

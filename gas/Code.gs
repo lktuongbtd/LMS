@@ -11,9 +11,9 @@
  *  4. Sao chép URL Web App (đuôi /exec) → dán vào config.js (apiUrl) trên GitHub.
  *  5. Giáo viên vào Cài đặt trong LMS, nhập Khoá ghi = WRITE_KEY, bấm "Đẩy lên máy chủ".
  */
-const WRITE_KEY = 'doi-khoa-nay-ngay'; // ← ĐỔI THÀNH CHUỖI BÍ MẬT
+const WRITE_KEY = '2028Btd@TtLMS2029'; // khoá ghi của trường
 const CHUNK = 45000;
-const VERSION = '2.2';
+const VERSION = '3.0';
 
 /* Lấy bảng tính chứa dữ liệu: dùng được cả khi script gắn với Google Sheet lẫn script tạo riêng ở script.google.com
    (khi tạo riêng, lần đầu sẽ tự tạo file Google Sheet "LMS LKT – Dữ liệu" trong Drive và ghi nhớ) */

@@ -34,6 +34,7 @@ const DB = {
     if(!this.data){ this.data = {version:1, settings:{schoolName:CFG.schoolName, writeKey:''}}; COLS.forEach(c=>this.data[c]=[]); (typeof SEED!=='undefined') && SEED.install(this.data); this.save(); }
     COLS.forEach(c=>{ if(!Array.isArray(this.data[c])) this.data[c]=[]; });
     this.data.settings = this.data.settings||{};
+    if(!this.data.settings.writeKey && CFG.writeKey) this.data.settings.writeKey=CFG.writeKey;
     return this.data;
   },
   save(){ try{ localStorage.setItem(KEY, JSON.stringify(this.data)); }catch(e){ toast('Bộ nhớ trình duyệt đầy – hãy sao lưu và xoá bớt dữ liệu','bad'); } },
@@ -78,7 +79,7 @@ const Sync = {
     const r = await fetch(this.url,{method:'POST',body:JSON.stringify({action,...payload})}); return r.json();
   },
   coreData(){ const d={}; ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory','banks'].forEach(c=>d[c]=DB.data[c]);
-    d.settings={schoolName:DB.data.settings.schoolName,header:DB.data.settings.header}; return d; },
+    d.settings={schoolName:DB.data.settings.schoolName,header:DB.data.settings.header,seedDone:DB.data.settings.seedDone||0}; return d; },
   async push(){ if(this.busy) return; this.busy=true; setSyncDot('…');
     try{ const r=await this.call('saveDb',{key:DB.data.settings.writeKey, db:JSON.stringify(this.coreData())}); if(!r.ok) throw new Error(r.error||'Lỗi lưu'); this.dirty=false; setSyncDot(true); return r; }
     finally{ this.busy=false; } },
@@ -87,10 +88,14 @@ const Sync = {
     if(!r.ok) throw new Error(r.error||'Lỗi tải');
     if(r.db){ const d=JSON.parse(r.db);
       if(Array.isArray(d.users)) d.users.forEach(u=>{ const o=DB.get('users',u.id); if(!u.pw&&o&&o.pw) u.pw=o.pw; if(!u.initPw&&o&&o.initPw&&o.pw===u.pw) u.initPw=o.initPw; if(o&&o.lastLogin&&!u.lastLogin) u.lastLogin=o.lastLogin; }); ['users','classes','questions','exams','matrices','lessons','assignments','announcements','topics','theory','banks'].forEach(c=>{ if(Array.isArray(d[c])) DB.data[c]=d[c]; });
-      if(d.settings&&d.settings.schoolName) DB.data.settings.schoolName=d.settings.schoolName; if(d.settings&&d.settings.header) DB.data.settings.header=d.settings.header; }
+      if(d.settings&&d.settings.schoolName) DB.data.settings.schoolName=d.settings.schoolName; if(d.settings&&d.settings.header) DB.data.settings.header=d.settings.header;
+      DB.data.settings.seedDone=(d.settings&&d.settings.seedDone)||0; }
+    let added=0; if(typeof SeedSync!=='undefined') added=SeedSync.ensure(DB.data); if(typeof migrateCurric==='function') added+=migrateCurric(DB.data);
     const merge=(col,arr,key)=>{ if(!Array.isArray(arr)) return; const m=new Map(DB.data[col].map(x=>[key(x),x])); arr.forEach(x=>{ const o=m.get(key(x)); if(!o || (x.updatedAt||0)>=(o.updatedAt||0)) m.set(key(x),x); }); DB.data[col]=[...m.values()]; };
     merge('submissions', r.subs, x=>x.id); merge('progress', r.progress, x=>x.studentId+'|'+x.lessonId);
-    DB.save(); setSyncDot(true); return r;
+    DB.save(); setSyncDot(true);
+    if(added && Auth.is('admin','teacher') && DB.data.settings.writeKey){ this.push().then(()=>toast('Đã cập nhật ngân hàng (câu mới, cây chương trình) lên máy chủ','ok')).catch(()=>{}); }
+    return r;
   },
   async submit(sub){ if(!this.on) return; try{ await this.call('submit',{item:JSON.stringify(sub)}); }catch(e){ (DB.data.outbox=DB.data.outbox||[]).push({t:'sub',item:sub}); DB.save(); } },
   async progress(p){ if(!this.on) return; try{ await this.call('progress',{item:JSON.stringify(p)}); }catch(e){ (DB.data.outbox=DB.data.outbox||[]).push({t:'prog',item:p}); DB.save(); } },
@@ -153,16 +158,17 @@ function makeZip(files){ const enc=new TextEncoder(), parts=[], cen=[]; let off=
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:'application/zip'}); }
 const b64ToBytes=b=>{ const s=atob(b); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; };
 /* In / PDF: biên dịch toàn bộ công thức bằng KaTeX trước, rồi in trong khung ẩn (không phụ thuộc mạng, không lộ mã LaTeX) */
-async function printHtml(title,html){
+async function printHtml(title,html,{font='"Times New Roman",Times,serif',size=13}={}){
   const box=document.createElement('div'); box.innerHTML=html; document.body.appendChild(box); box.style.cssText='position:absolute;left:-99999px;top:0;width:800px';
   renderMath(box); const body=box.innerHTML; box.remove();
-  const css=new URL('assets/vendor/katex/katex.min.css',location.href).href;
-  const doc=`<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${css}">
-  <style>@page{size:A4;margin:14mm 14mm 14mm 18mm}*{box-sizing:border-box}body{font-family:"Times New Roman",Times,serif;font-size:13pt;line-height:1.4;margin:0;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  const css=new URL('assets/vendor/katex/katex.min.css',location.href).href, fcss=new URL('assets/vendor/fonts.css',location.href).href;
+  const doc=`<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${css}"><link rel="stylesheet" href="${fcss}">
+  <style>@page{size:A4;margin:14mm 14mm 14mm 18mm}@page land{size:A4 landscape;margin:12mm}section[data-orient=landscape]{page:land}section+section{break-before:page}*{box-sizing:border-box}body{font-family:${font};font-size:${size}pt;line-height:1.4;margin:0;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   table{border-collapse:collapse;width:100%;page-break-inside:avoid}td,th{border:1px solid #000;padding:3px 6px;vertical-align:top}th{background:#e8ecf7}
   table.nb td{border:0!important;padding:2px 10px 2px 0}table.opt4 td{width:25%}table.opt2 td{width:50%}h1{text-align:center;font-size:16pt;margin:6px 0}h2{font-size:14pt}h3{font-size:13pt;margin:8px 0 4px}
   p{margin:3px 0}.c{text-align:center}.qp{margin-top:7px}.part{margin-top:10px}.qfigp{text-align:center;page-break-inside:avoid}.qfig-svg{max-width:300px;height:auto}
   .katex{font-size:1.06em}.katex-display{margin:4px 0}.th-box{border:1px solid #999;border-radius:6px;padding:8px 12px;margin:10px 0}.th-box>b{display:block;margin-bottom:4px}.th-fig{text-align:center}
+  .solbox{padding:4px 10px;margin:4px 0}table.m7991 td,table.m7991 th{font-size:10pt;padding:2px 3px;text-align:center;vertical-align:middle}table.m7991 p{margin:1px 0;text-align:left}table.center td{text-align:center}
   .bar{display:none}@media screen{body{padding:20px 40px;max-width:900px;margin:auto}}</style></head><body>${body}</body></html>`;
   const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(mobile){ const w=window.open('','_blank'); if(!w){ toast('Trình duyệt chặn cửa sổ mới – hãy cho phép cửa sổ bật lên','bad'); return; }
